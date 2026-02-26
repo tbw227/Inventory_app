@@ -1,0 +1,16 @@
+{
+  "name": "inventory_app",
+  "version": "1.0.0",
+  "description": "manage inventory",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tbw227"
+  },
+  "license": "ISC",
+  "author": "Tim Withrow",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
