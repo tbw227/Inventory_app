@@ -1,376 +1,162 @@
-# Inventory App 📦
+# FireTrack / Inventory App
 
-A multi-tenant SaaS platform for safety & first aid service companies to manage jobs, track supplies, and generate automatic service reports.
+Multi-tenant SaaS for safety and first-aid service companies: jobs, inventory, service reports (PDF), payments, weather, and QuickBooks-oriented integrations.
 
-**Status:** MVP Backend Complete ✅ | Security Phase 1 Done ✅ | Phase 2 (Auth) In Progress ⏳
+## Status (April 2026)
+
+| Area | State |
+|------|--------|
+| **Monorepo** | `backend/` (Express API), `frontend/` (React + Vite + Tailwind), optional `docker-compose` (Postgres + API + static UI) |
+| **Database** | **PostgreSQL** with **Prisma** ([`backend/prisma/schema.prisma`](backend/prisma/schema.prisma)); local Docker or hosted (see [SUPABASE.md](./SUPABASE.md)) |
+| **Auth** | **JWT** — login, `/api/auth/me`, role-aware routes ([`backend/routes/auth.js`](backend/routes/auth.js), [`backend/middleware/auth.js`](backend/middleware/auth.js)) |
+| **API** | Versioned **`/api/v1/*`** plus legacy **`/api/*`** mirrors; OpenAPI UI at **`/api/docs`** when the server is running |
+| **Health** | **`GET /health`** — liveness + Prisma connectivity ([`backend/app.js`](backend/app.js)) |
+| **Frontend** | SPA with **lazy-loaded routes**, dashboard, jobs, supplies, settings, Stripe checkout UI, barcode scan |
+| **CI** | GitHub Actions: Postgres 16, `prisma migrate deploy`, backend tests, frontend production build ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) |
+| **Tests** | **27** Jest tests under [`backend/__tests__/`](backend/__tests__/) (auth, jobs, supplies overview, PDF util). Same setup as CI: set `DATABASE_URL` / `DIRECT_URL`, run migrations, then `npm test` from `backend/`. |
+
+**Onboarding:** [docs/DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md) (fetch patterns, dashboard cache, scaling notes).
 
 ---
 
-## Quick Start
+## Quick start
 
 ```bash
-# Setup
-git clone <repo>
+git clone <repo-url>
 cd Inventory_app
+
+# Root installs concurrently only; install each package
 npm install
+npm install --prefix backend
+npm install --prefix frontend
 
-# Configure
-cp .env.example .env
-# Edit .env with your MongoDB URI and JWT secret
+# Backend env (Postgres URLs + JWT_SECRET + …)
+cp backend/.env.sample backend/.env
+# Edit backend/.env — see comments in .env.sample
 
-# Test
-npm test                # Run 39 passing tests
+# Database schema (local Postgres or Supabase)
+cd backend && npx prisma migrate deploy && cd ..
 
-# Run
-npm run dev             # Start on http://localhost:5000
+# Optional: seed demo data
+npm run seed --prefix backend
+
+# API + Vite dev server (API default :5000, Vite default :5174)
+npm run dev
 ```
 
----
+- **API:** `http://localhost:5000` (or `PORT` in `backend/.env`)
+- **SPA:** `http://localhost:5174` (or `VITE_DEV_PORT` in `frontend/.env`)
+- **Swagger:** `http://localhost:5000/api/docs`
 
-## Features
-
-✅ **Multi-tenant Architecture** — Fully isolated data per company  
-✅ **Job Management** — Create, track, and complete jobs  
-✅ **Inventory Tracking** — Auto-decrement supplies on job completion  
-✅ **PDF Reports** — Automatically generate service reports  
-✅ **Email Notifications** — Send reports to clients  
-✅ **Security** — Password hashing, validation, rate limiting, HTTP headers  
-✅ **Testing** — 39 passing Jest tests with full coverage  
+**Docker (Postgres + API + nginx frontend):** from repo root, `docker compose up --build` (see [`docker-compose.yml`](docker-compose.yml)).
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
-|-------|-----------|
-| **Backend** | Node.js + Express.js |
-| **Database** | MongoDB Atlas |
-| **Testing** | Jest + supertest (39 tests) |
-| **Security** | Helmet, bcryptjs, Joi, rate-limit, Morgan |
+|-------|------------|
+| API | Node.js, Express, Prisma, JWT, Joi, Helmet, rate limiting (optional via env) |
+| DB | PostgreSQL 16 (Docker / Supabase / any Prisma-compatible URL) |
+| Frontend | React 18, Vite 5, Tailwind, React Router, Recharts, Stripe.js |
+| Tests | Jest, Supertest (`backend/`) |
+| Ops | Docker Compose, GitHub Actions CI |
 
 ---
 
-## API Endpoints
+## API overview
 
-### Health & Status
-```
-GET /api/health              # Health check
-```
+Prefer **`/api/v1/...`**; **`/api/...`** is kept for backward compatibility.
 
-### Companies
-```
-POST   /api/companies        # Create company
-GET    /api/companies        # List companies
-```
+| Prefix | Examples |
+|--------|----------|
+| Auth | `/api/v1/auth/login`, `.../me`, password reset flows |
+| Core | companies, users, clients, locations, jobs, supplies |
+| Product | dashboard, payments, weather, uploads |
+| Integrations | QuickBooks-related routes under `/api/v1/integrations` |
+| Webhooks | `/api/webhooks` (e.g. Stripe; mounted before JSON body parser) |
 
-### Users
-```
-POST   /api/users            # Create user (password hashed)
-GET    /api/users            # List users by company_id param
-```
-
-### Clients
-```
-POST   /api/clients          # Create client
-GET    /api/clients          # List clients by company_id param
-```
-
-### Jobs
-```
-POST   /api/jobs             # Create job
-GET    /api/jobs             # List jobs by company_id param
-POST   /api/jobs/:id/complete # Complete job (PDF + email)
-```
-
-### Authentication (Phase 2)
-```
-POST   /api/auth/login       # Login (TO IMPLEMENT)
-POST   /api/auth/logout      # Logout (TO IMPLEMENT)
-GET    /api/auth/me          # Get current user (TO IMPLEMENT)
-```
+Full interactive docs: **`GET /api/docs`** on the running API.
 
 ---
 
-## Example Workflow
-
-```bash
-# 1. Create a company
-COMPANY=$(curl -s -X POST http://localhost:5000/api/companies \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Safety Solutions","subscription_tier":"basic"}' | jq -r '._id')
-
-# 2. Create a user
-USER=$(curl -s -X POST http://localhost:5000/api/users \
-  -H "Content-Type: application/json" \
-  -d "{\"email\":\"tech@safety.com\",\"password\":\"SecurePass123\",\"company_id\":\"$COMPANY\",\"role\":\"technician\"}" | jq -r '._id')
-
-# 3. Create a client
-CLIENT=$(curl -s -X POST http://localhost:5000/api/clients \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"ABC Corp\",\"phone\":\"555-0123\",\"company_id\":\"$COMPANY\"}" | jq -r '._id')
-
-# 4. Create a job
-JOB=$(curl -s -X POST http://localhost:5000/api/jobs \
-  -H "Content-Type: application/json" \
-  -d "{\"client_id\":\"$CLIENT\",\"description\":\"Safety inspection\",\"company_id\":\"$COMPANY\"}" | jq -r '._id')
-
-# 5. Complete the job (generates PDF + sends email)
-curl -X POST http://localhost:5000/api/jobs/$JOB/complete \
-  -H "Content-Type: application/json" \
-  -d '{"supplies_used":[{"supply_id":"001","quantity":2}]}'
-```
-
----
-
-## Project Structure
+## Project structure
 
 ```
 Inventory_app/
-├── models/                    # MongoDB schemas
-│   ├── Company.js
-│   ├── User.js
-│   ├── Client.js
-│   ├── Job.js
-│   └── Supply.js
-├── routes/                    # API endpoints
-│   ├── companies.js
-│   ├── users.js
-│   ├── clients.js
-│   ├── jobs.js
-│   └── auth.js               # (TO CREATE - Phase 2)
-├── middleware/                # Request processing
-│   ├── errorHandler.js        # Centralized error handling
-│   ├── validation.js          # Input validation (Joi)
-│   ├── logger.js              # Request logging (Morgan)
-│   ├── auth.js                # (TO CREATE - JWT)
-│   └── rbac.js                # (TO CREATE - role-based)
-├── utils/                     # Helper functions
-│   ├── auth.js                # Password hashing/verification
-│   ├── generatePdf.js         # PDF report generation
-│   └── sendEmail.js           # Email sending (Nodemailer)
-├── __tests__/                 # Jest test suite (39 passing)
-├── server.js                  # Express app setup
-├── package.json
-├── .env.example
-├── README.md                  # This file
-├── SUMMARY.md                 # Complete project overview
-├── STATUS.md                  # Current state & roadmap
-├── SECURITY.md                # Security checklist
-├── AUTHENTICATION.md          # JWT implementation guide
-└── TESTING.md                 # How to write tests
-```
-
----
-
-## Environment Variables
-
-Create `.env` in the root:
-
-```env
-# Database
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname
-MONGODB_TEST_URI=mongodb://localhost:27017/inventory_test
-
-# Server
-PORT=5000
-NODE_ENV=development
-
-# Security
-JWT_SECRET=your-random-secret-key-at-least-32-chars-long
-
-# Email
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-password
+├── backend/           # Express app, Prisma, services, tests
+│   ├── prisma/
+│   ├── routes/
+│   ├── services/
+│   └── __tests__/
+├── frontend/          # Vite + React SPA
+├── supabase/          # SQL migrations mirror (hosted Supabase workflow)
+├── docs/              # DEVELOPER_ONBOARDING.md
+├── docker-compose.yml
+└── .github/workflows/ # ci.yml
 ```
 
 ---
 
 ## Testing
 
+From repository root (after root `npm install` so `npm` can delegate):
+
 ```bash
-# Run all tests (39 passing)
 npm test
-
-# Watch mode (re-run on change)
-npm test -- --watch
-
-# Coverage report
-npm test -- --coverage
-
-# Run specific test file
-npm test -- __tests__/models/Job.test.js
 ```
 
-**Coverage includes:**
-- ✅ 5 MongoDB models
-- ✅ 4 API route files
-- ✅ PDF generation
-- ✅ Email sending
-- ✅ Error handling
-- ✅ Input validation
+Or explicitly:
+
+```bash
+cd backend
+npx prisma migrate deploy   # requires DATABASE_URL
+npm test                      # jest --forceExit
+npm run test:watch
+npm run test:coverage
+```
+
+CI uses a dedicated Postgres database `firetrack_test` and applies migrations before tests. If local runs fail with constraint errors, use a clean test DB or match CI env vars.
 
 ---
 
-## Security
+## Environment
 
-### Phase 1 — MVP Security ✅ COMPLETE
+All server configuration is documented in **[`backend/.env.sample`](backend/.env.sample)** (`DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `FRONTEND_URL`, Stripe, email, weather, optional Sentry, `DASHBOARD_CACHE_TTL_MS`, etc.).
 
-- [x] **Helmet** — HTTP security headers
-- [x] **Rate Limiting** — 100 requests/15 minutes per IP
-- [x] **Password Hashing** — bcryptjs (10 salt rounds)
-- [x] **Input Validation** — Joi schemas on all endpoints
-- [x] **Error Handling** — Centralized, no info leaks in production
-- [x] **Request Logging** — Morgan audit trail
-
-### Phase 2 — Before Customers ⏳ IN PROGRESS
-
-- [ ] **JWT Authentication** — Secure login/logout
-  - See [AUTHENTICATION.md](AUTHENTICATION.md)
-- [ ] **Authorization** — Role-based access control
-  - Technicians see only assigned jobs
-  - Admins see all company data
-
-### Phase 3 — Production ❌ PLANNED
-
-- [ ] Secrets management (AWS/Vault)
-- [ ] Data encryption at rest
-- [ ] Backup & disaster recovery
-- [ ] HTTPS enforcement
-- [ ] See [SECURITY.md](SECURITY.md)
+Frontend samples: [`frontend/.env.sample`](frontend/.env.sample).
 
 ---
 
-## Development
+## Security (summary)
 
-### Creating a Feature
-
-```bash
-# 1. Create branch
-git checkout -b feat/your-feature-name
-
-# 2. Make changes
-# (edit files)
-
-# 3. Test
-npm test
-
-# 4. Commit (semantic)
-git add .
-git commit -m "feat: add your feature"
-
-# 5. Push
-git push origin feat/your-feature-name
-```
-
-### Semantic Commits
-
-- `feat:` new feature
-- `fix:` bug fix
-- `docs:` documentation
-- `refactor:` code reorganization
-- `test:` test additions
-- `chore:` dependencies, config
+- Passwords hashed (bcrypt), JWT bearer auth, Joi validation, centralized errors, Helmet, optional rate limiting.
+- SPA stores the JWT in **localStorage** (common for SPAs; see onboarding doc for XSS and long-term cookie-session tradeoffs).
+- Production hardening (secrets management, backups, HTTPS termination) is deployment-specific.
 
 ---
 
 ## Documentation
 
-| Document | Purpose |
-|----------|---------|
-| [SUMMARY.md](SUMMARY.md) | Complete project overview with metrics |
-| [STATUS.md](STATUS.md) | Current state, what's next, roadmap |
-| [SECURITY.md](SECURITY.md) | Security checklist (MVP → production) |
-| [AUTHENTICATION.md](AUTHENTICATION.md) | JWT implementation guide (Phase 2) |
-| [TESTING.md](TESTING.md) | How to write Jest tests |
-
-**Start here:** [SUMMARY.md](SUMMARY.md) for the full picture
-
----
-
-## Roadmap
-
-| Phase | Status | Timeline | Details |
-|-------|--------|----------|---------|
-| **1: MVP Backend** | ✅ Complete | Done | Models, routes, testing |
-| **1: Security** | ✅ Complete | Done | Phase 1 hardening |
-| **2: Authentication** | ⏳ In Progress | Next | JWT login/logout |
-| **2: Authorization** | ⏳ In Progress | This week | RBAC, role checks |
-| **3: Frontend** | 🚀 Planned | 2 weeks | React mobile UI |
-| **3: Deployment** | 🚀 Planned | 3 weeks | Backend + frontend live |
-
----
-
-## Common Issues
-
-### Port 5000 is in use
-```bash
-# Change port in .env
-PORT=3001
-npm run dev
-```
-
-### MongoDB connection error
-```bash
-# Verify connection string in .env
-# Check: IP whitelist, username, password
-# Use: MongoDB Atlas console to debug
-```
-
-### Tests fail on first run
-```bash
-# Ensure MongoDB test URI is configured
-# Check: .env MONGODB_TEST_URI
-npm test -- --verbose
-```
-
-### Password not hashing
-```bash
-# Password is hashed in route, not model
-# Check: routes/users.js has hashPassword() call
-# Never store plain passwords
-```
-
----
-
-## Next Steps
-
-1. **Read [SUMMARY.md](SUMMARY.md)** — 10 min read, complete overview
-2. **Implement Phase 2** — Follow [AUTHENTICATION.md](AUTHENTICATION.md)
-   - JWT tokens: 2-3 hours
-   - Role-based access: 1-2 hours
-3. **Build Frontend** — React + Vite (5-7 hours)
-4. **Deploy** — Railway, Vercel (1-2 hours)
+| Document | Notes |
+|----------|--------|
+| [docs/DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md) | **Current** — data fetching, caching, auth notes |
+| [SUPABASE.md](./SUPABASE.md) | Hosted Postgres setup |
+| [COMMIT_GUIDE.md](./COMMIT_GUIDE.md) | Commit conventions |
+| [QUICKREF.md](./QUICKREF.md) | Command cheat sheet |
+| [STATUS.md](./STATUS.md) | Short project snapshot (kept in sync with this README) |
+| [SUMMARY.md](./SUMMARY.md), [AUTHENTICATION.md](./AUTHENTICATION.md) | **Historical** — pre-Prisma / early roadmap; trust README + onboarding doc instead |
 
 ---
 
 ## Contributing
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feat/amazing-feature`)
-3. Write/update tests
-4. Ensure all tests pass (`npm test`)
-5. Commit with semantic message
-6. Push to branch
-7. Open a pull request
-
----
-
-## Questions?
-
-- **How does auth work?** See [AUTHENTICATION.md](AUTHENTICATION.md)
-- **Is this secure?** See [SECURITY.md](SECURITY.md)
-- **What's the status?** See [STATUS.md](STATUS.md)
-- **How to test?** See [TESTING.md](TESTING.md)
-- **Big picture?** See [SUMMARY.md](SUMMARY.md)
+1. Branch from `main` / `master`.
+2. Run backend tests (with migrated DB) and `npm run build --prefix frontend` when you touch the UI.
+3. Open a PR; CI must pass.
 
 ---
 
 ## License
 
-MIT — Use freely for commercial or personal projects
-
----
-
-**Ready to build?** Start with [SUMMARY.md](SUMMARY.md) → then [AUTHENTICATION.md](AUTHENTICATION.md) for Phase 2
+MIT

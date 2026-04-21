@@ -1,0 +1,290 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  technician
+  admin
+}
+
+enum JobStatus {
+  pending
+  in_progress @map("in-progress")
+  completed
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+}
+
+enum SubscriptionTier {
+  basic
+  growth
+  pro
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  cancelled
+  incomplete
+}
+
+enum SupplyImportJobStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+enum SupplyImportJobType {
+  csv_supply
+}
+
+enum SupplyImportRowStatus {
+  pending
+  success
+  error
+}
+
+model Company {
+  id                           String             @id @default(uuid()) @db.Uuid
+  name                         String
+  contactInfo                  String?            @map("contact_info")
+  weatherLocations             Json               @default("[]") @map("weather_locations")
+  subscriptionTier             SubscriptionTier   @default(basic) @map("subscription_tier")
+  subscriptionStatus           SubscriptionStatus @default(active) @map("subscription_status")
+  stripeCustomerId             String             @default("") @map("stripe_customer_id")
+  stripeSubscriptionId         String             @default("") @map("stripe_subscription_id")
+  subscriptionCurrentPeriodEnd DateTime?          @map("subscription_current_period_end")
+  createdAt                    DateTime           @default(now()) @map("created_at")
+  updatedAt                    DateTime           @updatedAt @map("updated_at")
+
+  users    User[]
+  clients  Client[]
+  locations Location[]
+  supplies Supply[]
+  jobs     Job[]
+  payments Payment[]
+
+  supplyImportJobs      SupplyImportJob[]
+  quickBooksConnection  QuickBooksConnection?
+
+  @@map("companies")
+}
+
+model User {
+  id                     String    @id @default(uuid()) @db.Uuid
+  companyId              String    @map("company_id") @db.Uuid
+  company                Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role                   UserRole
+  name                   String
+  email                  String    @unique
+  passwordHash           String    @map("password_hash")
+  phone                  String?
+  photoUrl               String    @default("") @map("photo_url")
+  bio                    String    @default("")
+  location               String    @default("")
+  birthday               String    @default("")
+  skills                 String[]  @default([])
+  passwordResetTokenHash String?   @map("password_reset_token_hash")
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
+  preferences            Json      @default("{}")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  assignedJobs Job[]     @relation("AssignedJobs")
+  payments     Payment[]
+
+  @@index([companyId], map: "users_company_id_idx")
+  @@map("users")
+}
+
+model Client {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name              String
+  location          String
+  contactInfo       String?   @map("contact_info")
+  serviceStartDate  DateTime? @map("service_start_date")
+  serviceExpiryDate DateTime? @map("service_expiry_date")
+  quickbooks        Json?
+  requiredSupplies  Json      @default("[]") @map("required_supplies")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  locations Location[]
+  jobs      Job[]
+
+  @@index([companyId], map: "clients_company_id_idx")
+  @@map("clients")
+}
+
+model Location {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @map("company_id") @db.Uuid
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId         String   @map("client_id") @db.Uuid
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  address          String   @default("")
+  locationCode     String   @default("") @map("location_code")
+  stationInventory Json     @default("[]") @map("station_inventory")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  jobLinks    JobLocation[]
+  jobsPrimary Job[]         @relation("JobPrimaryLocation")
+
+  @@index([companyId], map: "locations_company_id_idx")
+  @@index([clientId], map: "locations_client_id_idx")
+  @@map("locations")
+}
+
+model Supply {
+  id                   String    @id @default(uuid()) @db.Uuid
+  companyId            String    @map("company_id") @db.Uuid
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category             String    @default("General") @db.VarChar(80)
+  /** Section title for spreadsheet-style group rows (e.g. ANSI Class A cabinets). */
+  catalogGroup         String?   @map("catalog_group") @db.VarChar(120)
+  name                 String
+  quantityOnHand       Int       @default(0) @map("quantity_on_hand")
+  reorderThreshold     Int       @default(5) @map("reorder_threshold")
+  unitPrice            Decimal?  @map("unit_price") @db.Decimal(12, 2)
+  qtyPerUnit           String?   @map("qty_per_unit") @db.VarChar(80)
+  caseQty              Int?      @map("case_qty")
+  minOrderQty          Int?      @map("min_order_qty")
+  minOrderUnitPrice    Decimal?  @map("min_order_unit_price") @db.Decimal(12, 2)
+  discountRQty         Int?      @map("discount_r_qty")
+  discountRUnitPrice   Decimal?  @map("discount_r_unit_price") @db.Decimal(12, 2)
+  discountNQty         Int?      @map("discount_n_qty")
+  discountNUnitPrice   Decimal?  @map("discount_n_unit_price") @db.Decimal(12, 2)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@index([companyId], map: "supplies_company_id_idx")
+  @@index([companyId, category], map: "supplies_company_category_idx")
+  @@index([companyId, catalogGroup], map: "supplies_company_catalog_group_idx")
+  @@map("supplies")
+}
+
+model SupplyImportJob {
+  id                String                @id @default(uuid()) @db.Uuid
+  companyId         String                @map("company_id") @db.Uuid
+  company           Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdByUserId   String?               @map("created_by_user_id") @db.Uuid
+  type              SupplyImportJobType
+  status            SupplyImportJobStatus @default(pending)
+  fileName          String?               @map("file_name") @db.VarChar(255)
+  result            Json?
+  errorMessage      String?               @map("error_message") @db.Text
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  rows SupplyImportRow[]
+
+  @@index([companyId], map: "supply_import_jobs_company_id_idx")
+  @@map("supply_import_jobs")
+}
+
+model SupplyImportRow {
+  id            String                @id @default(uuid()) @db.Uuid
+  jobId         String                @map("job_id") @db.Uuid
+  job           SupplyImportJob       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  rowIndex      Int                   @map("row_index")
+  payload       Json
+  status        SupplyImportRowStatus @default(pending)
+  errorMessage  String?               @map("error_message") @db.Text
+  createdAt     DateTime              @default(now()) @map("created_at")
+
+  @@index([jobId], map: "supply_import_rows_job_id_idx")
+  @@map("supply_import_rows")
+}
+
+model QuickBooksConnection {
+  id                   String   @id @default(uuid()) @db.Uuid
+  companyId            String   @unique @map("company_id") @db.Uuid
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  realmId              String   @map("realm_id") @db.VarChar(64)
+  accessToken          String   @map("access_token") @db.Text
+  refreshToken         String   @map("refresh_token") @db.Text
+  accessTokenExpiresAt DateTime @map("access_token_expires_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("quickbooks_connections")
+}
+
+model Job {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientId         String    @map("client_id") @db.Uuid
+  client           Client    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  locationId       String?   @map("location_id") @db.Uuid
+  location         Location? @relation("JobPrimaryLocation", fields: [locationId], references: [id], onDelete: SetNull)
+  assignedUserId   String    @map("assigned_user_id") @db.Uuid
+  assignedUser     User      @relation("AssignedJobs", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  description      String    @default("")
+  scheduledDate    DateTime  @map("scheduled_date")
+  status           JobStatus @default(pending)
+  plannedSupplies  Json      @default("[]") @map("planned_supplies")
+  suppliesUsed     Json      @default("[]") @map("supplies_used")
+  photos           String[]  @default([])
+  notes            String    @default("")
+  completedAt      DateTime? @map("completed_at")
+  serviceReportUrl String?   @map("service_report_url")
+  totalPaid        Float     @default(0) @map("total_paid")
+  billingAmount    Float?    @map("billing_amount")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  jobLocations JobLocation[]
+  payments     Payment[]
+
+  @@index([companyId, status], map: "jobs_company_id_status_idx")
+  @@index([assignedUserId], map: "jobs_assigned_user_id_idx")
+  @@index([companyId, assignedUserId, scheduledDate], map: "jobs_company_assigned_date_idx")
+  @@map("jobs")
+}
+
+model JobLocation {
+  jobId      String   @map("job_id") @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, locationId])
+  @@map("job_locations")
+}
+
+model Payment {
+  id                    String        @id @default(uuid()) @db.Uuid
+  companyId             String        @map("company_id") @db.Uuid
+  company               Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobId                 String        @map("job_id") @db.Uuid
+  job                   Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technicianId          String        @map("technician_id") @db.Uuid
+  technician            User          @relation(fields: [technicianId], references: [id], onDelete: Restrict)
+  amount                Float
+  currency              String        @default("usd")
+  stripePaymentIntentId String        @unique @map("stripe_payment_intent_id")
+  status                PaymentStatus @default(pending)
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  @@index([companyId], map: "payments_company_id_idx")
+  @@index([jobId], map: "payments_job_id_idx")
+  @@map("payments")
+}

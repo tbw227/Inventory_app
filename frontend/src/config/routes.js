@@ -1,0 +1,18 @@
+export const ROUTES = {
+  LOGIN: '/login',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
+  DASHBOARD: '/dashboard',
+  JOBS: '/jobs',
+  JOB_DETAIL: '/jobs/:id',
+  JOB_LABEL: '/jobs/:id/label',
+  SCAN: '/scan',
+  HISTORY: '/history',
+  SUPPLIES: '/supplies',
+  PRINT_LABELS: '/print-labels',
+  CLIENTS: '/clients',
+  LOCATIONS: '/locations',
+  USERS: '/users',
+  PROFILE: '/profile',
+  SETTINGS: '/settings',
+}

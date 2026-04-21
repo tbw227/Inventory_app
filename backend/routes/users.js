@@ -1,26 +1,16 @@
 const express = require('express');
-const User = require('../models/User');
+const { authenticate, authorize } = require('../middleware/auth');
+const { validate, schemas } = require('../middleware/validation');
+const userController = require('../controllers/userController');
+
 const router = express.Router();
 
-// get users for a company
-router.get('/:companyId', async (req, res) => {
-  try {
-    const users = await User.find({ company_id: req.params.companyId });
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// create a user
-router.post('/', async (req, res) => {
-  try {
-    const user = new User(req.body);
-    await user.save();
-    res.status(201).json(user);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
+router.get('/', authenticate, authorize('admin'), userController.list);
+router.get('/me', authenticate, userController.getMe);
+router.put('/me', authenticate, validate(schemas.updateOwnProfile), userController.updateMe);
+router.get('/:id', authenticate, authorize('admin'), userController.get);
+router.post('/', authenticate, authorize('admin'), validate(schemas.createUser), userController.create);
+router.put('/:id', authenticate, authorize('admin'), validate(schemas.updateUser), userController.update);
+router.delete('/:id', authenticate, authorize('admin'), userController.remove);
 
 module.exports = router;

@@ -1,0 +1,2 @@
+-- Optional local seed data after migrations.
+-- For app-shaped data, prefer: npm run seed --prefix backend (with DATABASE_URL set).

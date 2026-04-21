@@ -1,19 +1,49 @@
-const express = require('express');
-const connectDB = require('./db');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-require('dotenv').config();
+require('./loadEnv');
 
-connectDB();
-
-const app = express();
-app.use(cors());
-app.use(bodyParser.json());
-
-app.use('/api/companies', require('./routes/companies'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/clients', require('./routes/clients'));
-app.use('/api/jobs', require('./routes/jobs'));
+const connectDB = require('./config/db');
+const app = require('./app');
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+if (process.env.NODE_ENV !== 'test') {
+  connectDB()
+    .then(() => {
+      const server = app.listen(PORT, () =>
+        console.log(`Server running on port ${PORT}`)
+      );
+
+      const shutdown = async (signal) => {
+        console.log(`${signal} received, closing server and database pool…`);
+        let code = 0;
+        await new Promise((resolve) => {
+          server.close((err) => {
+            if (err) {
+              console.error('HTTP server close error:', err);
+              code = 1;
+            }
+            resolve();
+          });
+        });
+        try {
+          await connectDB.disconnect();
+        } catch (e) {
+          console.error('Prisma disconnect error:', e);
+          code = 1;
+        }
+        process.exit(code);
+      };
+
+      process.once('SIGTERM', () => {
+        void shutdown('SIGTERM');
+      });
+      process.once('SIGINT', () => {
+        void shutdown('SIGINT');
+      });
+    })
+    .catch((err) => {
+      console.error('Failed to start:', err?.message || err);
+      process.exit(1);
+    });
+}
+
+module.exports = app;

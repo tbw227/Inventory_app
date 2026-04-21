@@ -11,6 +11,8 @@ Fast lookup for common tasks and commands.
 **Tests:** 39 passing ✅  
 **Next:** Implement JWT authentication  
 
+**Supabase:** Hosted Postgres + optional client — see [SUPABASE.md](./SUPABASE.md).
+
 ---
 
 ## Key Commands

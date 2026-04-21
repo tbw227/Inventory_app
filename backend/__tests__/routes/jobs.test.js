@@ -1,216 +1,259 @@
 const request = require('supertest');
-const express = require('express');
-const bodyParser = require('body-parser');
-const Job = require('../../models/Job');
-const Company = require('../../models/Company');
-const User = require('../../models/User');
-const Client = require('../../models/Client');
-const Supply = require('../../models/Supply');
+const prisma = require('../../lib/prisma');
+const { createTestData } = require('../helpers');
 
-// Import test setup
 require('../setup');
 
-// Create a minimal Express app for testing
-const createTestApp = () => {
-  const app = express();
-  app.use(bodyParser.json());
-  app.use('/api/jobs', require('../../routes/jobs'));
-  return app;
-};
+process.env.JWT_SECRET = 'test-secret-key-at-least-32-characters';
+
+const { hashPassword } = require('../../utils/auth');
+
+const app = require('../../app');
 
 describe('Jobs Routes', () => {
-  let app, company, user, client, supply;
+  let company;
+  let tech;
+  let client;
+  let adminToken;
+  let techToken;
+  let supply;
 
   beforeEach(async () => {
-    app = createTestApp();
-    
-    company = await Company.create({ name: 'Test Company' });
-    user = await User.create({
-      company_id: company._id,
-      role: 'technician',
-      name: 'Tech',
-      email: 'tech@example.com',
-      password_hash: 'pwd',
-    });
-    client = await Client.create({
-      company_id: company._id,
-      name: 'Acme Corp',
-      location: '123 Main St',
-    });
-    supply = await Supply.create({
-      company_id: company._id,
-      name: 'Bandages',
-      quantity_on_hand: 50,
-      reorder_threshold: 5,
+    const data = await createTestData();
+    company = data.company;
+    tech = data.tech;
+    client = data.client;
+    adminToken = data.adminToken;
+    techToken = data.techToken;
+
+    supply = await prisma.supply.create({
+      data: {
+        companyId: company.id,
+        name: 'Bandages',
+        quantityOnHand: 50,
+        reorderThreshold: 5,
+      },
     });
   });
 
-  describe('POST /api/jobs', () => {
-    it('should create a job', async () => {
-      // Arrange
-      const jobData = {
-        company_id: company._id.toString(),
-        client_id: client._id.toString(),
-        assigned_user_id: user._id.toString(),
-        scheduled_date: new Date(),
-      };
-
-      // Act
-      const response = await request(app)
-        .post('/api/jobs')
-        .send(jobData);
-
-      // Assert
-      expect(response.status).toBe(201);
-      expect(response.body).toBeDefined();
-      expect(response.body.status).toBe('pending');
-    });
-
-    it('should return 400 for missing required fields', async () => {
-      // Act
-      const response = await request(app)
-        .post('/api/jobs')
-        .send({ client_id: 'test' });
-
-      // Assert
-      expect(response.status).toBe(400);
-    });
-  });
-
-  describe('GET /api/jobs/company/:companyId', () => {
-    it('should return jobs for a specific company', async () => {
-      // Arrange
-      await Job.create({
-        company_id: company._id,
-        client_id: client._id,
-        assigned_user_id: user._id,
-        scheduled_date: new Date(),
+  describe('GET /api/jobs', () => {
+    it('should return jobs for the authenticated user company', async () => {
+      await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+        },
       });
 
-      // Act
       const response = await request(app)
-        .get(`/api/jobs/company/${company._id.toString()}`);
+        .get('/api/jobs')
+        .set('Authorization', `Bearer ${adminToken}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBe(1);
     });
 
-    it('should return empty array for company with no jobs', async () => {
-      // Act
-      const response = await request(app)
-        .get(`/api/jobs/company/${company._id.toString()}`);
+    it('should return 401 without auth token', async () => {
+      const response = await request(app).get('/api/jobs');
+      expect(response.status).toBe(401);
+    });
 
-      // Assert
+    it('should filter by status', async () => {
+      await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+          status: 'completed',
+        },
+      });
+      await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+          status: 'pending',
+        },
+      });
+
+      const response = await request(app)
+        .get('/api/jobs?status=pending')
+        .set('Authorization', `Bearer ${adminToken}`);
+
       expect(response.status).toBe(200);
-      expect(response.body.length).toBe(0);
+      expect(response.body.length).toBe(1);
+      expect(response.body[0].status).toBe('pending');
+    });
+
+    it('should only return assigned jobs for technicians', async () => {
+      const otherTech = await prisma.user.create({
+        data: {
+          companyId: company.id,
+          role: 'technician',
+          name: 'Other Tech',
+          email: 'other@test.com',
+          passwordHash: await hashPassword('OtherTech1!'),
+        },
+      });
+
+      await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+        },
+      });
+      await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: otherTech.id,
+          scheduledDate: new Date(),
+        },
+      });
+
+      const response = await request(app)
+        .get('/api/jobs')
+        .set('Authorization', `Bearer ${techToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.length).toBe(1);
+    });
+  });
+
+  describe('GET /api/jobs/:id', () => {
+    it('should return a single job with populated fields', async () => {
+      const job = await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          description: 'Test job',
+          scheduledDate: new Date(),
+        },
+      });
+
+      const response = await request(app)
+        .get(`/api/jobs/${job.id}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.description).toBe('Test job');
+      expect(response.body.client_id.name).toBe('Test Client');
+    });
+
+    it('should return 404 for non-existent job', async () => {
+      const response = await request(app)
+        .get('/api/jobs/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe('POST /api/jobs', () => {
+    it('should create a job (admin only)', async () => {
+      const jobData = {
+        client_id: client.id,
+        assigned_user_id: tech.id,
+        description: 'New inspection',
+        scheduled_date: new Date(),
+      };
+
+      const response = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(jobData);
+
+      expect(response.status).toBe(201);
+      expect(response.body.status).toBe('pending');
+      expect(response.body.description).toBe('New inspection');
+    });
+
+    it('should return 403 for technicians', async () => {
+      const response = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${techToken}`)
+        .send({
+          client_id: client.id,
+          assigned_user_id: tech.id,
+          scheduled_date: new Date(),
+        });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 400 for missing required fields', async () => {
+      const response = await request(app)
+        .post('/api/jobs')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ client_id: 'not-a-uuid' });
+
+      expect(response.status).toBe(400);
     });
   });
 
   describe('POST /api/jobs/:id/complete', () => {
     it('should complete a job and decrement inventory', async () => {
-      // Arrange
-      const job = await Job.create({
-        company_id: company._id,
-        client_id: client._id,
-        assigned_user_id: user._id,
-        scheduled_date: new Date(),
+      const job = await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+        },
       });
 
-      const completeData = {
-        suppliesUsed: [{ name: 'Bandages', quantity: 5 }],
-        photos: ['https://example.com/photo.jpg'],
-        clientEmail: 'client@example.com',
-      };
-
-      // Act
       const response = await request(app)
-        .post(`/api/jobs/${job._id.toString()}/complete`)
-        .send(completeData);
+        .post(`/api/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${techToken}`)
+        .send({
+          suppliesUsed: [{ name: 'Bandages', quantity: 5 }],
+          photos: ['https://example.com/photo.jpg'],
+        });
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body.message).toContain('completed');
 
-      // Verify job was updated
-      const updatedJob = await Job.findById(job._id);
+      const updatedJob = await prisma.job.findUnique({ where: { id: job.id } });
       expect(updatedJob.status).toBe('completed');
-      expect(updatedJob.supplies_used.length).toBe(1);
-      expect(updatedJob.photos.length).toBe(1);
+
+      const updatedSupply = await prisma.supply.findUnique({ where: { id: supply.id } });
+      expect(updatedSupply.quantityOnHand).toBe(45);
     });
 
-    it('should decrement supply quantity when job is completed', async () => {
-      // Arrange
-      const job = await Job.create({
-        company_id: company._id,
-        client_id: client._id,
-        assigned_user_id: user._id,
-        scheduled_date: new Date(),
+    it('should prevent completing an already completed job', async () => {
+      const job = await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+          status: 'completed',
+        },
       });
 
-      const initialQuantity = supply.quantity_on_hand;
+      const response = await request(app)
+        .post(`/api/jobs/${job.id}/complete`)
+        .set('Authorization', `Bearer ${techToken}`)
+        .send({});
 
-      // Act
-      await request(app)
-        .post(`/api/jobs/${job._id.toString()}/complete`)
-        .send({
-          suppliesUsed: [{ name: 'Bandages', quantity: 3 }],
-          photos: [],
-          clientEmail: 'test@example.com',
-        });
-
-      // Assert
-      const updatedSupply = await Supply.findById(supply._id);
-      expect(updatedSupply.quantity_on_hand).toBe(initialQuantity - 3);
+      expect(response.status).toBe(400);
     });
 
     it('should return 404 for non-existent job', async () => {
-      // Act
-      const fakeId = '000000000000000000000000';
       const response = await request(app)
-        .post(`/api/jobs/${fakeId}/complete`)
-        .send({
-          suppliesUsed: [],
-          photos: [],
-        });
+        .post('/api/jobs/00000000-0000-0000-0000-000000000000/complete')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
 
-      // Assert
       expect(response.status).toBe(404);
-    });
-
-    it('should handle multiple supplies used', async () => {
-      // Arrange
-      const supply2 = await Supply.create({
-        company_id: company._id,
-        name: 'Gauze',
-        quantity_on_hand: 30,
-      });
-
-      const job = await Job.create({
-        company_id: company._id,
-        client_id: client._id,
-        assigned_user_id: user._id,
-        scheduled_date: new Date(),
-      });
-
-      // Act
-      await request(app)
-        .post(`/api/jobs/${job._id.toString()}/complete`)
-        .send({
-          suppliesUsed: [
-            { name: 'Bandages', quantity: 2 },
-            { name: 'Gauze', quantity: 1 },
-          ],
-          photos: [],
-          clientEmail: 'test@example.com',
-        });
-
-      // Assert
-      const updatedSupply1 = await Supply.findById(supply._id);
-      const updatedSupply2 = await Supply.findById(supply2._id);
-      expect(updatedSupply1.quantity_on_hand).toBe(48);
-      expect(updatedSupply2.quantity_on_hand).toBe(29);
     });
   });
 });

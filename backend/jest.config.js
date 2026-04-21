@@ -4,10 +4,14 @@ module.exports = {
   coveragePathIgnorePatterns: ['/node_modules/'],
   testMatch: ['**/__tests__/**/*.test.js', '**/*.test.js'],
   collectCoverageFrom: [
-    'models/**/*.js',
     'routes/**/*.js',
+    'controllers/**/*.js',
+    'services/**/*.js',
     'utils/**/*.js',
+    'middleware/**/*.js',
     '!node_modules/**',
   ],
   verbose: true,
+  /** One shared Postgres + global TRUNCATE — parallel test files race and break FKs / unique emails. */
+  maxWorkers: 1,
 };

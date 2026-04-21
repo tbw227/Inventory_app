@@ -1,26 +1,16 @@
 const express = require('express');
-const Client = require('../models/Client');
+const { authenticate, authorize } = require('../middleware/auth');
+const { validate, schemas } = require('../middleware/validation');
+const clientController = require('../controllers/clientController');
+
 const router = express.Router();
 
-// get all clients for a safety company
-router.get('/:companyId', async (req, res) => {
-  try {
-    const clients = await Client.find({ company_id: req.params.companyId });
-    res.json(clients);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// create a client
-router.post('/', async (req, res) => {
-  try {
-    const client = new Client(req.body);
-    await client.save();
-    res.status(201).json(client);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-});
+router.get('/', authenticate, authorize('admin'), clientController.list);
+/** Two-segment path so this never collides with GET /:id. */
+router.get('/meta/calendar-events', authenticate, authorize('admin'), clientController.calendarEvents);
+router.get('/:id', authenticate, authorize('admin'), clientController.get);
+router.post('/', authenticate, authorize('admin'), validate(schemas.createClient), clientController.create);
+router.put('/:id', authenticate, authorize('admin'), validate(schemas.updateClient), clientController.update);
+router.delete('/:id', authenticate, authorize('admin'), clientController.remove);
 
 module.exports = router;

@@ -1,33 +1,29 @@
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+require('../loadEnv');
+const prisma = require('../lib/prisma');
 
-let mongoServer;
+process.env.NODE_ENV = 'test';
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'test-secret-key-at-least-32-characters';
+}
 
-// Start in-memory MongoDB before tests
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  await mongoose.connect(mongoUri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  if (!process.env.DATABASE_URL || !process.env.DIRECT_URL) {
+    throw new Error(
+      'DATABASE_URL and DIRECT_URL are required for tests (local: set both to the same test DB URL). Run: npx prisma migrate deploy'
+    );
+  }
+  await prisma.$connect();
 });
 
-// Clean up after tests
 afterAll(async () => {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
-  if (mongoServer) await mongoServer.stop();
+  await prisma.$disconnect();
 });
 
-// Clear database between test suites
 afterEach(async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    const collection = collections[key];
-    await collection.deleteMany({});
-  }
+  // Truncate tenant root; CASCADE clears all FK-linked rows (including supply_import_*, quickbooks_*, etc.).
+  await prisma.$executeRawUnsafe(
+    'TRUNCATE TABLE companies RESTART IDENTITY CASCADE;'
+  );
 });
 
-module.exports = { mongoServer };
+module.exports = { prisma };
