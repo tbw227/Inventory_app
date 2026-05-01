@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import { isAbortError } from '../utils/isAbortError'
 
-export function useCalendarData() {
+export function useCalendarData({ includeClientEvents = true } = {}) {
   const [calendarJobs, setCalendarJobs] = useState([])
   const [calendarClientEvents, setCalendarClientEvents] = useState([])
 
@@ -11,12 +11,11 @@ export function useCalendarData() {
     const { signal } = controller
     ;(async () => {
       try {
-        const [jobsRes, eventsRes] = await Promise.all([
-          api.get('/jobs', { params: { view: 'calendar' }, signal }),
-          api.get('/clients/meta/calendar-events', { signal }),
-        ])
+        const jobsReq = api.get('/jobs', { params: { view: 'calendar' }, signal })
+        const eventsReq = includeClientEvents ? api.get('/clients/meta/calendar-events', { signal }) : Promise.resolve(null)
+        const [jobsRes, eventsRes] = await Promise.all([jobsReq, eventsReq])
         setCalendarJobs(jobsRes.data || [])
-        setCalendarClientEvents(eventsRes.data?.events || [])
+        setCalendarClientEvents(eventsRes?.data?.events || [])
       } catch (e) {
         if (isAbortError(e)) return
         setCalendarJobs([])
@@ -24,7 +23,7 @@ export function useCalendarData() {
       }
     })()
     return () => controller.abort()
-  }, [])
+  }, [includeClientEvents])
 
   return { calendarJobs, calendarClientEvents }
 }

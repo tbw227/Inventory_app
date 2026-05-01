@@ -6,7 +6,7 @@ require('../setup');
 
 process.env.JWT_SECRET = 'test-secret-key-at-least-32-characters';
 
-const { hashPassword } = require('../../utils/auth');
+const { hashPassword, generateToken } = require('../../utils/auth');
 
 const app = require('../../app');
 
@@ -256,4 +256,67 @@ describe('Jobs Routes', () => {
       expect(response.status).toBe(404);
     });
   });
+
+  describe('POST /api/jobs/:id/inventory', () => {
+    it('should allow technician to add inventory used to job report', async () => {
+      const job = await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+        },
+      })
+
+      const response = await request(app)
+        .post(`/api/jobs/${job.id}/inventory`)
+        .set('Authorization', `Bearer ${techToken}`)
+        .send({
+          items: [{ name: 'Bandages', quantity: 2 }],
+        })
+
+      expect(response.status).toBe(200)
+      expect(response.body.message).toContain('Job inventory updated')
+
+      const updatedJob = await prisma.job.findUnique({ where: { id: job.id } })
+      expect(updatedJob.suppliesUsed).toEqual([{ name: 'Bandages', quantity: expect.any(Number) }])
+    })
+
+    it('should return 403 when technician tries to update a job they are not assigned to', async () => {
+      const job = await prisma.job.create({
+        data: {
+          companyId: company.id,
+          clientId: client.id,
+          assignedUserId: tech.id,
+          scheduledDate: new Date(),
+        },
+      })
+
+      const otherTechPasswordHash = await hashPassword('OtherTech1!')
+      const otherTech = await prisma.user.create({
+        data: {
+          companyId: company.id,
+          role: 'technician',
+          name: 'Other Tech',
+          email: 'other-tech@test.com',
+          passwordHash: otherTechPasswordHash,
+        },
+      })
+
+      const otherTechToken = generateToken({
+        userId: otherTech.id,
+        companyId: company.id,
+        role: 'technician',
+      })
+
+      const response = await request(app)
+        .post(`/api/jobs/${job.id}/inventory`)
+        .set('Authorization', `Bearer ${otherTechToken}`)
+        .send({
+          items: [{ name: 'Bandages', quantity: 1 }],
+        })
+
+      expect(response.status).toBe(403)
+    })
+  })
 });

@@ -6,6 +6,7 @@ export const ROUTES = {
   JOBS: '/jobs',
   JOB_DETAIL: '/jobs/:id',
   JOB_LABEL: '/jobs/:id/label',
+  LABELS: '/labels',
   SCAN: '/scan',
   HISTORY: '/history',
   SUPPLIES: '/supplies',
@@ -15,4 +16,5 @@ export const ROUTES = {
   USERS: '/users',
   PROFILE: '/profile',
   SETTINGS: '/settings',
+  WEATHER_DEMO: '/weather-demo',
 }

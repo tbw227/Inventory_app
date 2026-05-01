@@ -45,3 +45,13 @@ exports.complete = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.addInventoryUsed = async (req, res, next) => {
+  try {
+    const data = req.validatedData || req.body;
+    const job = await jobService.addInventoryUsed(req.user.company_id, req.params.id, req.user.role, req.user._id, data);
+    res.json({ message: 'Job inventory updated', job });
+  } catch (err) {
+    next(err);
+  }
+};

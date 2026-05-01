@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -6,6 +6,8 @@ import api from '../../services/api'
 import { unwrapList } from '../../utils/unwrapList'
 import HomeNavLink from '../shared/HomeNavLink'
 import { ROUTES } from '../../config/routes'
+import BottomNav from './BottomNav'
+import { AnimatePresence, motion } from 'framer-motion'
 
 function isUserDetailPath(pathname) {
   return pathname.startsWith(`${ROUTES.USERS}/`) && pathname.length > ROUTES.USERS.length + 1
@@ -17,14 +19,6 @@ const NAV_ITEMS = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
-      </svg>
-    ),
-  },
-  {
-    path: ROUTES.SCAN, label: 'Scan',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM3 12h18" />
       </svg>
     ),
   },
@@ -55,28 +49,40 @@ const NAV_ITEMS = [
   },
 ]
 
-const ADMIN_NAV_ITEMS = [
-  {
-    path: '/print-labels', label: 'Print Labels',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-      </svg>
-    ),
-  },
-  {
-    path: ROUTES.CLIENTS, label: 'Clients',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-      </svg>
-    ),
-  },
-]
+const ADMIN_NAV_ITEMS = []
+
+const CLIENTS_SECTION_ICON = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+    />
+  </svg>
+)
 
 const JOBS_SECTION_ICON = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+  </svg>
+)
+
+const LABELS_ICON = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h10v10H7z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 3h4M15 3h4M3 5v4M21 5v4M3 15v4M21 15v4" />
+  </svg>
+)
+
+const SCAN_ICON = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM3 12h18" />
+  </svg>
+)
+
+const PRINT_LABELS_ICON = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
   </svg>
 )
 
@@ -108,16 +114,26 @@ const TECH_GROUP_ICON = (
   </svg>
 )
 
-function jobsSectionActive(pathname) {
+function clientsSectionActive(pathname) {
   return (
+    pathname === ROUTES.CLIENTS ||
+    pathname.startsWith(`${ROUTES.CLIENTS}/`) ||
     pathname === ROUTES.JOBS ||
     pathname.startsWith(`${ROUTES.JOBS}/`) ||
     pathname.startsWith(ROUTES.LOCATIONS)
   )
 }
 
+function labelsSectionActive(pathname) {
+  return pathname === ROUTES.LABELS || pathname === ROUTES.SCAN || pathname === ROUTES.PRINT_LABELS
+}
+
 function jobListLinkActive(pathname) {
   return pathname === ROUTES.JOBS || pathname.startsWith(`${ROUTES.JOBS}/`)
+}
+
+function clientListLinkActive(pathname) {
+  return pathname === ROUTES.CLIENTS || pathname.startsWith(`${ROUTES.CLIENTS}/`)
 }
 
 function teamSectionActive(pathname) {
@@ -156,14 +172,15 @@ function nestedLinkClass(active, isContrast) {
   }`
 }
 
-function JobsNavSection({ location, isContrast, onNavigate }) {
-  const [jobsOpen, setJobsOpen] = useState(() => jobsSectionActive(location.pathname))
+function ClientsNavSection({ location, isContrast, onNavigate }) {
+  const [clientsOpen, setClientsOpen] = useState(() => clientsSectionActive(location.pathname))
 
   useEffect(() => {
-    if (jobsSectionActive(location.pathname)) setJobsOpen(true)
+    if (clientsSectionActive(location.pathname)) setClientsOpen(true)
   }, [location.pathname])
 
-  const parentActive = jobsSectionActive(location.pathname)
+  const parentActive = clientsSectionActive(location.pathname)
+  const clientsChildActive = clientListLinkActive(location.pathname)
   const jobsChildActive = jobListLinkActive(location.pathname)
   const locChildActive = location.pathname.startsWith(ROUTES.LOCATIONS)
 
@@ -171,8 +188,8 @@ function JobsNavSection({ location, isContrast, onNavigate }) {
     <div className="mb-1">
       <button
         type="button"
-        onClick={() => setJobsOpen((o) => !o)}
-        aria-expanded={jobsOpen}
+        onClick={() => setClientsOpen((o) => !o)}
+        aria-expanded={clientsOpen}
         className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left group ${
           parentActive
             ? isContrast
@@ -192,18 +209,26 @@ function JobsNavSection({ location, isContrast, onNavigate }) {
               : 'text-slate-500 group-hover:text-white'
           }
         >
-          {JOBS_SECTION_ICON}
+          {CLIENTS_SECTION_ICON}
         </span>
-        <span className="flex-1">Jobs</span>
-        <DropdownDot open={jobsOpen} isContrast={isContrast} />
+        <span className="flex-1">Clients</span>
+        <DropdownDot open={clientsOpen} isContrast={isContrast} />
       </button>
 
-      {jobsOpen && (
+      {clientsOpen && (
         <div
           className={`mt-0.5 ml-3 pl-3 space-y-0.5 border-l ${
             isContrast ? 'border-yellow-400/40' : 'border-slate-600'
           }`}
         >
+          <Link
+            to={ROUTES.CLIENTS}
+            onClick={onNavigate}
+            className={nestedLinkClass(clientsChildActive, isContrast)}
+          >
+            <span className={clientsChildActive ? 'text-white' : 'text-slate-500'}>{CLIENTS_SECTION_ICON}</span>
+            <span>Clients</span>
+          </Link>
           <Link
             to={ROUTES.JOBS}
             onClick={onNavigate}
@@ -222,6 +247,42 @@ function JobsNavSection({ location, isContrast, onNavigate }) {
           </Link>
         </div>
       )}
+    </div>
+  )
+}
+
+function LabelsNavSection({ location, isContrast, onNavigate }) {
+  const labelsActive = labelsSectionActive(location.pathname)
+
+  return (
+    <div className="mb-1">
+      <Link
+        to={ROUTES.LABELS}
+        onClick={onNavigate}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-left group ${
+          labelsActive
+            ? isContrast
+              ? 'bg-yellow-400/15 text-yellow-100'
+              : 'bg-slate-800 text-white'
+            : isContrast
+              ? 'text-yellow-100/80 hover:bg-yellow-400/10'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+        }`}
+      >
+        <span
+          className={
+            labelsActive
+              ? isContrast
+                ? 'text-yellow-100'
+                : 'text-white'
+              : 'text-slate-500 group-hover:text-white'
+          }
+        >
+          {LABELS_ICON}
+        </span>
+        <span className="flex-1">Labels</span>
+        {labelsActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300" />}
+      </Link>
     </div>
   )
 }
@@ -383,11 +444,32 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
   const isContrast = theme === 'contrast'
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const alertsRef = useRef(null)
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
+
+  useEffect(() => {
+    if (!alertsOpen) return undefined
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setAlertsOpen(false)
+    }
+    const onMouseDown = (e) => {
+      const el = alertsRef.current
+      if (!el) return
+      if (el.contains(e.target)) return
+      setAlertsOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('mousedown', onMouseDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [alertsOpen])
 
   const NavLink = ({ item }) => {
     const active = location.pathname === item.path || location.pathname.startsWith(item.path + '/')
@@ -428,27 +510,31 @@ export default function Layout({ children }) {
       >
         <div className="flex items-center justify-between h-14 px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="lg:hidden text-slate-400 hover:text-white transition-colors"
-              aria-expanded={mobileOpen}
-              aria-controls="app-sidebar"
-              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {mobileOpen
-                  ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
-              </svg>
-            </button>
-            <Link to={ROUTES.DASHBOARD} className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center">
-                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9V9h2v4zm0-6H9V5h2v2z" />
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="lg:hidden text-slate-400 hover:text-white transition-colors"
+                aria-expanded={mobileOpen}
+                aria-controls="app-sidebar"
+                aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {mobileOpen
+                    ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />}
                 </svg>
-              </div>
-              <span className="text-white font-bold text-lg tracking-tight">FireTrack</span>
+              </button>
+            )}
+            <Link to={ROUTES.DASHBOARD} className="flex items-center gap-2">
+              <img
+                src="/images/logo-code3.png"
+                alt="Code 3 First Aid"
+                className="w-8 h-8 rounded-md object-cover"
+                loading="eager"
+                decoding="async"
+              />
+              <span className="text-white font-bold text-lg tracking-tight">Code 3 First Aid</span>
             </Link>
             <span className="hidden sm:inline-flex text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">
               Technician Ops
@@ -481,7 +567,7 @@ export default function Layout({ children }) {
       {/* Body row: sidebar + content */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {mobileOpen && (
+        {isAdmin && mobileOpen && (
           <div
             className="fixed inset-0 z-30 bg-black/50 lg:hidden"
             onClick={() => setMobileOpen(false)}
@@ -492,6 +578,7 @@ export default function Layout({ children }) {
         <aside
           id="app-sidebar"
           className={`
+            ${!isAdmin ? 'hidden lg:flex' : ''}
             lg:relative fixed inset-y-0 left-0 z-40
             flex flex-col transition-transform duration-300 ease-in-out
             w-60 shrink-0
@@ -506,7 +593,13 @@ export default function Layout({ children }) {
             </p>
             {DASHBOARD_NAV_ITEM && <NavLink key={DASHBOARD_NAV_ITEM.path} item={DASHBOARD_NAV_ITEM} />}
 
-            <JobsNavSection
+            <ClientsNavSection
+              location={location}
+              isContrast={isContrast}
+              onNavigate={() => setMobileOpen(false)}
+            />
+
+            <LabelsNavSection
               location={location}
               isContrast={isContrast}
               onNavigate={() => setMobileOpen(false)}
@@ -536,7 +629,85 @@ export default function Layout({ children }) {
             )}
           </nav>
 
-          <div className="shrink-0 border-t border-slate-700 p-3">
+          <div ref={alertsRef} className="shrink-0 border-t border-slate-700 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 px-1">
+                Inventory Alerts
+              </p>
+              <button
+                type="button"
+                onClick={() => setAlertsOpen((v) => !v)}
+                aria-expanded={alertsOpen}
+                aria-label="Toggle inventory alerts panel"
+                className="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800/60 p-2 text-slate-200 hover:bg-slate-800 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </button>
+            </div>
+
+            {alertsOpen && (
+              <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-2.5 space-y-2">
+                <Link
+                  to={ROUTES.JOBS}
+                  onClick={() => setAlertsOpen(false)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-white bg-indigo-600/90 hover:bg-indigo-600 transition-colors"
+                >
+                  <span>Open Jobs</span>
+                  <span className="text-white/70">→</span>
+                </Link>
+                <Link
+                  to={ROUTES.SUPPLIES}
+                  onClick={() => setAlertsOpen(false)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-100 border border-slate-700 hover:bg-slate-800 transition-colors"
+                >
+                  <span>Inventory</span>
+                  <span className="text-slate-400">→</span>
+                </Link>
+                <Link
+                  to={ROUTES.SETTINGS}
+                  onClick={() => setAlertsOpen(false)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-slate-100 border border-slate-700 hover:bg-slate-800 transition-colors"
+                >
+                  <span>Account Settings</span>
+                  <span className="text-slate-400">→</span>
+                </Link>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlertsOpen(false)
+                      navigate(ROUTES.DASHBOARD, { state: { jump: 'today' } })
+                    }}
+                    className="text-xs font-medium text-slate-100 px-2 py-2 rounded-md border border-slate-700 hover:bg-slate-800 transition-colors"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlertsOpen(false)
+                      navigate(ROUTES.DASHBOARD, { state: { jump: 'schedule' } })
+                    }}
+                    className="text-xs font-medium text-slate-100 px-2 py-2 rounded-md border border-slate-700 hover:bg-slate-800 transition-colors"
+                  >
+                    Calendar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlertsOpen(false)
+                      navigate(ROUTES.DASHBOARD, { state: { jump: 'analytics' } })
+                    }}
+                    className="text-xs font-medium text-slate-100 px-2 py-2 rounded-md border border-slate-700 hover:bg-slate-800 transition-colors"
+                  >
+                    Charts
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-3 px-1">
               <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
                 {user?.name?.charAt(0)?.toUpperCase() || '?'}
@@ -560,7 +731,7 @@ export default function Layout({ children }) {
 
         {/* Main content */}
         <main
-          className={`flex-1 overflow-y-auto ${
+          className={`flex-1 overflow-y-auto ${!isAdmin ? 'pb-24 lg:pb-0' : ''} ${
             isContrast ? 'bg-black' : 'bg-slate-50 dark:bg-slate-950'
           }`}
         >
@@ -590,7 +761,17 @@ export default function Layout({ children }) {
                 <HomeNavLink />
               </nav>
             )}
-            {children}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           <footer
@@ -599,11 +780,12 @@ export default function Layout({ children }) {
             }`}
           >
             <p className={`text-xs ${isContrast ? 'text-yellow-200' : 'text-slate-400 dark:text-slate-500'}`}>
-              © {new Date().getFullYear()} FireTrack · Technician Operations Platform
+              © {new Date().getFullYear()} Code 3 First Aid · Technician Operations Platform
             </p>
           </footer>
         </main>
       </div>
+      <BottomNav />
     </div>
   )
 }

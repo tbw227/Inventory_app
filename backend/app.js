@@ -3,9 +3,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const morganMiddleware = require('./middleware/logger');
+const responseCacheControl = require('./middleware/responseCacheControl');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
+app.set('etag', 'weak');
 
 if (process.env.NODE_ENV === 'production') {
   const origins = (process.env.FRONTEND_URL || '')
@@ -89,6 +91,7 @@ app.use(
     credentials: true,
   })
 );
+app.use(responseCacheControl);
 
 // Webhook routes must be mounted BEFORE express.json() — Stripe needs the raw body
 app.use('/api/webhooks', require('./routes/webhooks'));

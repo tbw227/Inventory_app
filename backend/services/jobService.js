@@ -329,4 +329,68 @@ async function completeJob(companyId, jobId, role, userId, data) {
   return formatJob(listed);
 }
 
-module.exports = { listJobs, getJob, createJob, updateJob, completeJob, formatJob };
+async function addInventoryUsed(companyId, jobId, role, userId, data) {
+  const { items = [] } = data || {}
+
+  const job = await prisma.job.findFirst({
+    where: { id: String(jobId), companyId: String(companyId) },
+    select: { id: true, status: true, assignedUserId: true, suppliesUsed: true },
+  })
+
+  if (!job) {
+    throw new AppError('Job not found', 404)
+  }
+
+  if (job.status === 'completed') {
+    throw new AppError('Job is already completed', 400)
+  }
+
+  if (role === 'technician' && job.assignedUserId !== String(userId)) {
+    throw new AppError('Only the assigned technician can update this job', 403)
+  }
+
+  const existing = Array.isArray(job.suppliesUsed) ? job.suppliesUsed : []
+  const mergedMap = new Map()
+
+  for (const it of existing) {
+    const name = it?.name
+    if (!name) continue
+    const qty = Number(it?.quantity) || 0
+    if (qty <= 0) continue
+    mergedMap.set(String(name), { name: String(name), quantity: qty })
+  }
+
+  for (const it of items) {
+    const name = it?.name
+    if (!name) continue
+    const qty = Number(it?.quantity) || 0
+    if (qty <= 0) continue
+    const key = String(name)
+    const prev = mergedMap.get(key)
+    mergedMap.set(key, { name: key, quantity: (prev?.quantity || 0) + qty })
+  }
+
+  const suppliesUsedNext = Array.from(mergedMap.values())
+
+  await prisma.job.update({
+    where: { id: String(jobId) },
+    data: { suppliesUsed: suppliesUsedNext },
+  })
+
+  const updated = await prisma.job.findFirst({
+    where: { id: String(jobId) },
+    include: jobIncludeList,
+  })
+
+  return formatJob(updated)
+}
+
+module.exports = {
+  listJobs,
+  getJob,
+  createJob,
+  updateJob,
+  completeJob,
+  addInventoryUsed,
+  formatJob,
+}

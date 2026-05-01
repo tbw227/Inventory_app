@@ -505,7 +505,7 @@ export default function InventoryOverviewCharts({ shop, clients }) {
           <div style={{ height: Math.min(420, Math.max(240, shopBars.length * 32 || 240)) }}>
             {shopBars.length === 0 ? (
               <div className="h-48 flex items-center justify-center text-xs text-gray-400 border border-dashed border-gray-200 dark:border-slate-600 rounded-xl">
-                No shop SKUs to chart.
+                No shop items to chart.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">

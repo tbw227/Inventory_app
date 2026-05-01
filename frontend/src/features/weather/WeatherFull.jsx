@@ -230,7 +230,7 @@ export function WeatherFull({
         className={`relative flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col overflow-x-hidden overflow-y-hidden bg-gradient-to-br ${a.gradient} p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] shadow-2xl sm:h-full sm:max-h-none sm:max-w-[min(100vw,420px)] sm:rounded-l-2xl sm:p-6 sm:pb-6 sm:pt-6 ${a.text}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <AnimatedWeather condition={data?.condition || data?.main || ''} />
+        <AnimatedWeather condition={data?.condition || data?.main || ''} isDay={data?.isDay ?? true} />
 
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
           <div className="mb-3 flex items-center justify-between gap-2">

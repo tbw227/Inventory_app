@@ -3,6 +3,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import viteCompression from 'vite-plugin-compression'
+import { VitePWA } from 'vite-plugin-pwa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -20,6 +22,39 @@ function readBackendApiOrigin() {
   } catch {
     return null
   }
+}
+
+/**
+ * Keep chunking explicit and easy to maintain:
+ * - vendor-react: framework/runtime (rarely changes)
+ * - vendor-charts: dashboard charting library
+ * - vendor-scan: scanner + barcode tools
+ * - vendor-integrations: Stripe/Supabase SDKs
+ * Leave everything else to Vite defaults to avoid over-splitting/circular chunking.
+ */
+function manualChunks(id) {
+  const normalizedId = id.replace(/\\/g, '/')
+  if (!normalizedId.includes('/node_modules/')) return undefined
+
+  if (
+    normalizedId.includes('/react/') ||
+    normalizedId.includes('/react-dom/') ||
+    normalizedId.includes('/react-router-dom/')
+  ) {
+    return 'vendor-react'
+  }
+  if (normalizedId.includes('/recharts/')) return 'vendor-charts'
+  if (normalizedId.includes('/@zxing/browser/') || normalizedId.includes('/jsbarcode/')) {
+    return 'vendor-scan'
+  }
+  if (
+    normalizedId.includes('/@stripe/react-stripe-js/') ||
+    normalizedId.includes('/@stripe/stripe-js/') ||
+    normalizedId.includes('/@supabase/supabase-js/')
+  ) {
+    return 'vendor-integrations'
+  }
+  return undefined
 }
 
 export default defineConfig(({ mode }) => {
@@ -48,7 +83,27 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // Generate precompressed assets; supported hosts can serve these directly.
+      viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1536, verbose: false }),
+      viteCompression({ algorithm: 'brotliCompress', ext: '.br', threshold: 1536, verbose: false }),
+      // Make the app installable + enable a service worker for offline capability.
+      VitePWA({
+        registerType: 'autoUpdate',
+        workbox: {
+          clientsClaim: true,
+          skipWaiting: true,
+        },
+      }),
+    ],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks,
+        },
+      },
+    },
     server: {
       port: Number(env.VITE_DEV_PORT || 5174),
       proxy: { '/api': apiProxy },

@@ -122,6 +122,12 @@ export default function Supplies() {
   const [importBusy, setImportBusy] = useState(false)
   const [importMsg, setImportMsg] = useState(null)
   const [importErr, setImportErr] = useState(null)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [emailRecipient, setEmailRecipient] = useState('')
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [emailMsg, setEmailMsg] = useState(null)
+  const [emailErr, setEmailErr] = useState(null)
+  const [detailItem, setDetailItem] = useState(null)
 
   const fetchOverview = useCallback(async () => {
     setLoading(true)
@@ -141,6 +147,10 @@ export default function Supplies() {
   useEffect(() => {
     fetchOverview()
   }, [fetchOverview])
+
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => shop.some((s) => s._id === id)))
+  }, [shop])
 
   const headerLabels = useMemo(() => {
     if (!parsedRows.length) return []
@@ -375,7 +385,111 @@ export default function Supplies() {
     }
   }
 
-  const shopColSpan = isAdmin ? 12 : 11
+  function toggleSelect(itemId) {
+    setSelectedIds((prev) => (prev.includes(itemId) ? prev.filter((id) => id !== itemId) : [...prev, itemId]))
+  }
+
+  function selectAllVisible() {
+    setSelectedIds(shop.map((s) => s._id))
+  }
+
+  function clearSelected() {
+    setSelectedIds([])
+  }
+
+  function openDetails(item) {
+    setDetailItem(item)
+  }
+
+  function closeDetails() {
+    setDetailItem(null)
+  }
+
+  const selectedShopRows = useMemo(() => {
+    const selected = new Set(selectedIds)
+    return shop.filter((s) => selected.has(s._id))
+  }, [shop, selectedIds])
+
+  function printRows(rows, scopeLabel) {
+    if (!rows.length) {
+      setEmailErr(`No inventory rows selected for ${scopeLabel}.`)
+      return
+    }
+    const htmlRows = rows
+      .map(
+        (s) => `
+        <tr>
+          <td>${s.name || ''}</td>
+          <td>${s.category || 'General'}</td>
+          <td style="text-align:right;">${s.quantity_on_hand ?? 0}</td>
+          <td style="text-align:right;">${s.reorder_threshold ?? 0}</td>
+          <td>${s.catalog_group || ''}</td>
+          <td>${s.qty_per_unit || ''}</td>
+        </tr>`
+      )
+      .join('')
+    const w = window.open('', '_blank', 'width=980,height=760')
+    if (!w) {
+      setEmailErr('Popup blocked. Allow popups to print inventory.')
+      return
+    }
+    w.document.write(`<!doctype html>
+<html>
+  <head>
+    <title>Inventory print</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 20px; color: #111827; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      p { margin: 0 0 16px; color: #4b5563; font-size: 12px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; }
+      th { text-align: left; background: #f3f4f6; }
+    </style>
+  </head>
+  <body>
+    <h1>Inventory export</h1>
+    <p>${scopeLabel} · ${new Date().toLocaleString()}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th><th>Category</th><th>On hand</th><th>Reorder at</th><th>Catalog group</th><th>Qty per unit</th>
+        </tr>
+      </thead>
+      <tbody>${htmlRows}</tbody>
+    </table>
+  </body>
+</html>`)
+    w.document.close()
+    w.focus()
+    w.print()
+  }
+
+  async function emailRows(rows, includeAll = false) {
+    if (!emailRecipient.trim()) {
+      setEmailErr('Enter an email recipient first.')
+      return
+    }
+    if (!includeAll && rows.length === 0) {
+      setEmailErr('Select at least one item to email.')
+      return
+    }
+    setEmailBusy(true)
+    setEmailErr(null)
+    setEmailMsg(null)
+    try {
+      const payload = includeAll
+        ? { recipient: emailRecipient.trim(), include_all: true }
+        : { recipient: emailRecipient.trim(), item_ids: rows.map((s) => s._id) }
+      const res = await api.post('/supplies/export/email', payload)
+      setEmailMsg(res.data?.message || 'Inventory export email sent.')
+    } catch (err) {
+      setEmailErr(err?.response?.data?.error || 'Could not send inventory email.')
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  const shopColSpan = isAdmin ? 13 : 12
 
   const shopTableRows = useMemo(() => {
     const rows = []
@@ -663,11 +777,11 @@ export default function Supplies() {
       {totals && !loading && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Shop SKUs</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Shop items (SKUs)</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{totals.shop_skus}</p>
           </div>
           <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Shop units</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Shop units (qty)</p>
             <p className="text-2xl font-bold text-teal-700 dark:text-teal-400 mt-0.5">{totals.shop_units}</p>
           </div>
           <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
@@ -700,14 +814,87 @@ export default function Supplies() {
       {!loading && !error && (
         <>
           <section>
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Shop / warehouse inventory</h2>
-              <Link
-                to="/locations"
-                className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:underline shrink-0"
-              >
-                Manage stations →
-              </Link>
+            <div className="flex flex-col gap-3 mb-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Shop / warehouse inventory</h2>
+                <Link
+                  to="/locations"
+                  className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:underline shrink-0"
+                >
+                  Manage stations →
+                </Link>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => printRows(selectedShopRows, `Selected items (${selectedShopRows.length})`)}
+                    className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-md font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    Print selected
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printRows(shop, `All items (${shop.length})`)}
+                    className="text-xs border border-gray-300 dark:border-slate-600 px-3 py-1.5 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Print all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectAllVisible}
+                    className="text-xs border border-gray-300 dark:border-slate-600 px-3 py-1.5 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearSelected}
+                    className="text-xs border border-gray-300 dark:border-slate-600 px-3 py-1.5 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Clear
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                    {selectedIds.length} selected (use checkboxes to select)
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Click an item row to view details
+                  </span>
+                </div>
+                {isAdmin && (
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <input
+                      type="email"
+                      value={emailRecipient}
+                      onChange={(e) => setEmailRecipient(e.target.value)}
+                      placeholder="Email inventory to..."
+                      className="w-full sm:max-w-xs border border-gray-300 dark:border-slate-600 rounded-md px-2.5 py-1.5 text-xs bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      disabled={emailBusy}
+                      onClick={() => emailRows(selectedShopRows, false)}
+                      className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-md font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                    >
+                      {emailBusy ? 'Sending…' : 'Email selected'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={emailBusy}
+                      onClick={() => emailRows(shop, true)}
+                      className="text-xs border border-gray-300 dark:border-slate-600 px-3 py-1.5 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                    >
+                      Email all
+                    </button>
+                  </div>
+                )}
+                {emailErr && (
+                  <p className="mt-2 text-xs text-red-600 dark:text-red-400">{emailErr}</p>
+                )}
+                {emailMsg && (
+                  <p className="mt-2 text-xs text-teal-700 dark:text-teal-300">{emailMsg}</p>
+                )}
+              </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               Stock kept in your shop or trucks—not yet attributed to a client site.
@@ -731,6 +918,9 @@ export default function Supplies() {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                   <thead className="bg-gray-100 dark:bg-slate-800/90">
                     <tr>
+                      <ShopTableHeaderCell rowSpan={2} className="align-middle text-center">
+                        Pick
+                      </ShopTableHeaderCell>
                       <ShopTableHeaderCell colSpan={4} className="text-center border-r border-gray-200 dark:border-slate-600">
                         Catalog
                       </ShopTableHeaderCell>
@@ -825,6 +1015,7 @@ export default function Supplies() {
                       const s = row.supply
                       const low = s.quantity_on_hand <= s.reorder_threshold
                       const editing = isAdmin && editingId === s._id
+                      const selected = selectedIds.includes(s._id)
                       const { itemNo, description } = parseSupplyDisplayName(s.name)
                       const showPricing = isAdmin
                       const tierHidden = (
@@ -834,7 +1025,37 @@ export default function Supplies() {
                         </div>
                       )
                       return (
-                        <tr key={s._id} className={low ? 'bg-red-50/80 dark:bg-red-950/20' : ''}>
+                        <tr
+                          key={s._id}
+                          onClick={() => {
+                            if (!editing) openDetails(s)
+                          }}
+                          onKeyDown={(e) => {
+                            if (editing) return
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              openDetails(s)
+                            }
+                          }}
+                          role={editing ? undefined : 'button'}
+                          tabIndex={editing ? undefined : 0}
+                          className={`${
+                            selected
+                              ? 'bg-blue-50/80 dark:bg-blue-950/30'
+                              : low
+                              ? 'bg-red-50/80 dark:bg-red-950/20'
+                              : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
+                          } ${editing ? '' : 'cursor-pointer'}`}
+                        >
+                          <td className="px-3 py-3 text-center align-top">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => toggleSelect(s._id)}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`Select ${description}`}
+                            />
+                          </td>
                           {editing ? (
                             <td colSpan={2} className="px-3 py-3 text-sm align-top">
                               <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5">
@@ -1077,14 +1298,18 @@ export default function Supplies() {
                                   <button
                                     type="button"
                                     disabled={editSaving}
-                                    onClick={saveEdit}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    saveEdit()
+                                  }}
                                     className="text-xs font-medium text-teal-700 dark:text-teal-300 hover:underline"
                                   >
                                     Save
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation()
                                       setEditingId(null)
                                       setEditDraft(null)
                                       setEditError(null)
@@ -1097,7 +1322,12 @@ export default function Supplies() {
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => startEdit(s)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    startEdit(s)
+                                  }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClickCapture={(e) => e.stopPropagation()}
                                   className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
                                 >
                                   Edit
@@ -1282,6 +1512,74 @@ export default function Supplies() {
             </div>
           </section>
         </>
+      )}
+
+      {detailItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="inventory-detail-title"
+          onClick={closeDetails}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl max-w-lg w-full p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 id="inventory-detail-title" className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {parseSupplyDisplayName(detailItem.name).description}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Item # {parseSupplyDisplayName(detailItem.name).itemNo}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetails}
+                className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Category</p>
+                <p className="font-medium text-gray-900 dark:text-white">{detailItem.category || 'General'}</p>
+              </div>
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">On hand</p>
+                <p className="font-medium text-gray-900 dark:text-white tabular-nums">{detailItem.quantity_on_hand ?? 0}</p>
+              </div>
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Reorder at</p>
+                <p className="font-medium text-gray-900 dark:text-white tabular-nums">{detailItem.reorder_threshold ?? 0}</p>
+              </div>
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Catalog group</p>
+                <p className="font-medium text-gray-900 dark:text-white">{detailItem.catalog_group || '—'}</p>
+              </div>
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Qty per unit</p>
+                <p className="font-medium text-gray-900 dark:text-white">{detailItem.qty_per_unit || '—'}</p>
+              </div>
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 px-3 py-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Case qty</p>
+                <p className="font-medium text-gray-900 dark:text-white tabular-nums">{detailItem.case_qty ?? '—'}</p>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <div className="pt-2 border-t border-gray-100 dark:border-slate-800 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <p>Min order: {detailItem.min_order_qty ?? '—'} @ {fmtMoneyCell(detailItem.min_order_unit_price)}</p>
+                <p>Level R: {detailItem.discount_r_qty ?? '—'} @ {fmtMoneyCell(detailItem.discount_r_unit_price)}</p>
+                <p>Level N: {detailItem.discount_n_qty ?? '—'} @ {fmtMoneyCell(detailItem.discount_n_unit_price)}</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

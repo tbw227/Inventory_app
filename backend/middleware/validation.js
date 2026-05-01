@@ -190,6 +190,14 @@ const schemas = {
     clientEmail: Joi.string().email().optional(),
   }),
 
+  /**
+   * Technician field workflow: increment / merge the job report’s suppliesUsed immediately,
+   * without completing the job yet.
+   */
+  addJobInventoryUsed: Joi.object({
+    items: Joi.array().items(supplyItem).min(1).required(),
+  }),
+
   createSupply: Joi.object({
     name: Joi.string().min(1).max(500).required(),
     category: Joi.string().allow('', null).max(80).optional(),
@@ -232,6 +240,22 @@ const schemas = {
     items: Joi.array().items(supplyImportItem).min(1).max(5000).required(),
     file_name: Joi.string().allow('', null).max(255).optional(),
   }),
+
+  supplyExportEmail: Joi.object({
+    recipient: Joi.string().email().required(),
+    include_all: Joi.boolean().optional(),
+    item_ids: Joi.array().items(uuid).max(5000).optional(),
+  }).custom((value, helpers) => {
+    const includeAll = Boolean(value.include_all);
+    const ids = Array.isArray(value.item_ids) ? value.item_ids : [];
+    if (!includeAll && ids.length === 0) {
+      return helpers.error('any.invalid');
+    }
+    return value;
+  }, 'inventory export selection validation')
+    .messages({
+      'any.invalid': 'Select at least one inventory item or set include_all=true',
+    }),
 
   createPaymentIntent: Joi.object({
     job_id: uuid.required(),

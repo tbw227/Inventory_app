@@ -110,7 +110,7 @@ export default function UserDetail() {
             onChange={handlePhotoChange}
           />
         </label>
-        {photoSrc && (
+        {hasPhoto && (
           <button
             type="button"
             onClick={removePhoto}

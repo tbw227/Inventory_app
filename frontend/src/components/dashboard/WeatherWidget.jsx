@@ -65,8 +65,33 @@ const HERO_JOKE_HOLD_MS = 6500
 const HERO_NEWS_HOLD_MS = 4800
 const HERO_SPORTS_HOLD_MS = 4800
 
-/** Joke + news + sports alternate with fade (dashboard hero). */
-function HeroExtrasRotator({ joke, news, sports }) {
+function RotatorTypeIcon({ type, className = 'w-3.5 h-3.5' }) {
+  if (type === 'joke') {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a7 7 0 00-4 12.75V18a1 1 0 001 1h6a1 1 0 001-1v-2.25A7 7 0 0012 3z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 21h5M10.5 18.5h3" />
+      </svg>
+    )
+  }
+  if (type === 'sports') {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+        <circle cx="12" cy="12" r="8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16M4 12h16M6.5 6.5c1.3 1.2 2.7 1.8 5.5 1.8s4.2-.6 5.5-1.8M6.5 17.5c1.3-1.2 2.7-1.8 5.5-1.8s4.2.6 5.5 1.8" />
+      </svg>
+    )
+  }
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5h14v10H7l-2 2V5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8M8 12h5" />
+    </svg>
+  )
+}
+
+/** Joke + news + sports alternate with fade. */
+function HeroExtrasRotator({ joke, news, sports, variant = 'hero' }) {
   const slides = useMemo(() => {
     const s = []
     if (joke?.setup) s.push({ type: 'joke', joke })
@@ -146,9 +171,22 @@ function HeroExtrasRotator({ joke, news, sports }) {
 
   const slide = slides[index]
 
+  const isHero = variant === 'hero'
+  const cardClass = isHero
+    ? 'rounded-xl border border-white/20 bg-white/10 px-2.5 py-2 text-left backdrop-blur-sm sm:px-3 sm:py-2.5'
+    : 'rounded-xl border border-slate-200/90 dark:border-slate-600 bg-slate-50/95 dark:bg-slate-800/70 px-3 py-2.5 text-left'
+  const labelClass = isHero
+    ? 'text-[10px] font-semibold uppercase tracking-wide text-white/65'
+    : 'text-[10px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-400'
+  const bodyClass = isHero ? 'text-xs leading-snug text-white/85' : 'text-xs leading-snug text-slate-600 dark:text-slate-300'
+  const linkClass = isHero
+    ? 'underline decoration-white/35 underline-offset-2 hover:text-white'
+    : 'text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-teal-700 dark:text-slate-200 dark:hover:text-teal-300'
+  const labelWrapClass = `inline-flex items-center gap-1.5 ${labelClass}`
+
   return (
     <div
-      className="rounded-xl border border-white/20 bg-white/10 px-2.5 py-2 text-left backdrop-blur-sm sm:px-3 sm:py-2.5"
+      className={cardClass}
       aria-live="polite"
       aria-atomic="true"
     >
@@ -161,23 +199,23 @@ function HeroExtrasRotator({ joke, news, sports }) {
       >
         {slide.type === 'joke' && (
           <div key="joke">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-white/65">Joke of the day</p>
-            <p className="mt-1.5 text-xs font-medium leading-snug text-white/85">{slide.joke.setup}</p>
+            <p className={labelWrapClass}><RotatorTypeIcon type="joke" /> Joke of the day</p>
+            <p className={`mt-1.5 font-medium ${bodyClass}`}>{slide.joke.setup}</p>
             {slide.joke.punchline ? (
-              <p className="mt-1 text-xs leading-snug text-white/80">{slide.joke.punchline}</p>
+              <p className={`mt-1 ${bodyClass}`}>{slide.joke.punchline}</p>
             ) : null}
           </div>
         )} 
         {slide.type === 'news' && (
           <div key={`news-${slide.idx}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-white/65">Breaking news</p>
-            <p className="mt-1.5 text-xs leading-snug text-white/85">
+            <p className={labelWrapClass}><RotatorTypeIcon type="news" /> News update</p>
+            <p className={`mt-1.5 ${bodyClass}`}>
               {slide.item.url ? (
                 <a
                   href={slide.item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline decoration-white/35 underline-offset-2 hover:text-white"
+                  className={linkClass}
                 >
                   {slide.item.title}
                 </a>
@@ -189,14 +227,14 @@ function HeroExtrasRotator({ joke, news, sports }) {
         )}
         {slide.type === 'sports' && (
           <div key={`sports-${slide.idx}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-white/65">Sports update</p>
-            <p className="mt-1.5 text-xs leading-snug text-white/85">
+            <p className={labelWrapClass}><RotatorTypeIcon type="sports" /> Sports update</p>
+            <p className={`mt-1.5 ${bodyClass}`}>
               {slide.item.url ? (
                 <a
                   href={slide.item.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline decoration-white/35 underline-offset-2 hover:text-white"
+                  className={linkClass}
                 >
                   {slide.item.title}
                 </a>
@@ -220,92 +258,6 @@ function fmtFetched(ts) {
   if (m < 60) return `Updated ${m}m ago`
   const h = Math.floor(m / 60)
   return `Updated ${h}h ago`
-}
-
-/** Sports list on the default (non-hero) dashboard card; hero uses the rotating extras strip. */
-function WeatherWidgetSports({ sports }) {
-  const has = Array.isArray(sports) && sports.length > 0
-  if (!has) return null
-
-  return (
-    <div className="rounded-xl border border-slate-200/90 dark:border-slate-600 bg-slate-50/95 dark:bg-slate-800/70 px-3 py-2.5 text-left">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-400">Sports</p>
-      <ul className="mt-1.5 list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-300">
-        {sports.slice(0, 5).map((item, idx) => (
-          <li key={item.id || idx} className="leading-snug">
-            {item.url ? (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-teal-700 dark:text-slate-200 dark:hover:text-teal-300"
-              >
-                {item.title}
-              </a>
-            ) : (
-              item.title
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-/** News only — joke is rendered inside the WeatherMini gradient card. */
-function WeatherWidgetNews({ news, variant }) {
-  const hasNews = Array.isArray(news) && news.length > 0
-  if (!hasNews) return null
-
-  if (variant === 'hero') {
-    return (
-      <div className="rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 text-left backdrop-blur-sm">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-white/65">News</p>
-        <ul className="mt-1.5 list-inside list-disc space-y-1 text-xs text-white/85">
-          {news.slice(0, 6).map((item, idx) => (
-            <li key={item.id || idx} className="leading-snug">
-              {item.url ? (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline decoration-white/35 underline-offset-2 hover:text-white"
-                >
-                  {item.title}
-                </a>
-              ) : (
-                item.title
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-xl border border-slate-200/90 dark:border-slate-600 bg-slate-50/95 dark:bg-slate-800/70 px-3 py-2.5 text-left">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-400">News</p>
-      <ul className="mt-1.5 list-inside list-disc space-y-1 text-xs text-slate-600 dark:text-slate-300">
-        {news.slice(0, 6).map((item, idx) => (
-          <li key={item.id || idx} className="leading-snug">
-            {item.url ? (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-700 underline decoration-slate-400 underline-offset-2 hover:text-teal-700 dark:text-slate-200 dark:hover:text-teal-300"
-              >
-                {item.title}
-              </a>
-            ) : (
-              item.title
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
 }
 
 function CityPickerStrip({
@@ -389,6 +341,7 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
   const [open, setOpen] = useState(false)
   const [range, setRange] = useState('4')
   const [rawPanelJobs, setRawPanelJobs] = useState([])
+  const [showMoreStats, setShowMoreStats] = useState(false)
 
   useEffect(() => {
     if (!locations.length) return
@@ -451,6 +404,19 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
       : null
   const popPct = cur?.pop != null && !Number.isNaN(Number(cur.pop)) ? Math.round(Number(cur.pop) * 100) : null
   const precipIn = cur?.precipitation_in != null ? fmtDec(cur.precipitation_in, 2) : null
+  const pressureDisplay =
+    pressureInHg != null
+      ? `${pressureInHg} inHg`
+      : pressureHpa != null
+        ? `${pressureHpa} hPa`
+        : null
+  const extraStatRows = [
+    pressureDisplay ? { label: 'Pressure', value: pressureDisplay, sub: pressureInHg != null && pressureHpa != null ? `${pressureHpa} hPa` : null } : null,
+    visMi != null ? { label: 'Visibility', value: `${visMi} mi` } : null,
+    popPct != null && popPct > 0 ? { label: 'Precip chance', value: `${popPct}%` } : null,
+    precipIn != null && Number(precipIn) > 0 ? { label: 'Precip now', value: `${precipIn} in` } : null,
+  ].filter(Boolean)
+  const hasExtraStats = extraStatRows.length > 0
 
   const maxDays = data?._forecastDaysAvailable || data?.daily?.length || 0
   const isOpenMeteo = data?._provider === 'open-meteo'
@@ -500,6 +466,10 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
     }
   }, [open])
 
+  useEffect(() => {
+    setShowMoreStats(false)
+  }, [selectedQuery])
+
   const upcomingJobsForPanel = useMemo(() => {
     return rawPanelJobs.map((job) => {
       const jw = data?.list?.length ? getJobWeather(job, data) : null
@@ -535,7 +505,7 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
   if (err) {
     if (variant === 'hero') {
       return (
-        <div className="w-full min-w-0 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-left text-xs text-teal-100/80 sm:text-right">
+        <div className="w-full min-w-0 px-0.5 text-left text-xs text-teal-100/80 sm:text-right">
           <span className="font-medium text-white/90">Weather</span>
           <span className="mx-1.5 text-white/30">·</span>
           {err}
@@ -554,8 +524,8 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
   if (loading || !data || !vm) {
     if (variant === 'hero') {
       return (
-        <div className="w-full min-w-0 animate-pulse rounded-2xl border border-white/10 bg-white/5 px-3 py-3 sm:px-4 sm:py-4">
-          <div className="h-16 rounded-xl bg-white/10" />
+        <div className="w-full min-w-0 animate-pulse py-1 sm:py-1.5">
+          <div className="h-16 w-full max-w-full rounded-xl bg-white/10" />
         </div>
       )
     }
@@ -592,34 +562,32 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
   if (variant === 'hero') {
     return (
       <>
-        <div className="w-full min-w-0 rounded-2xl border border-white/25 bg-white/[0.07] p-2.5 shadow-md backdrop-blur-md sm:p-3">
-          <div className="space-y-2.5 sm:space-y-3">
-            <CityPickerStrip
-              locations={locations}
-              selectedQuery={selectedQuery}
-              setSelectedQuery={setSelectedQuery}
-              setOpen={setOpen}
-              weatherThemeId={weatherThemeId}
-              variant="hero"
-            />
-            <WeatherMini
-              data={vm}
-              joke={null}
-              onOpen={() => setOpen(true)}
-              compact
-              weatherThemeId={weatherThemeId}
-              className="border border-white/15 shadow-none"
-            />
-            <HeroExtrasRotator joke={joke} news={news} sports={sports} />
-            <div className="flex flex-wrap justify-start gap-1.5 border-t border-white/10 pt-2.5 sm:justify-end sm:pt-3">
-              <HeroStatChip label="Feels" value={feels != null ? `${feels}°` : null} />
-              <HeroStatChip label="Wind" value={windLine} />
-              <HeroStatChip label="Hum" value={humidity != null ? `${humidity}%` : null} />
-              <HeroStatChip label="Press" value={pressureVal} />
-              {visMi != null && <HeroStatChip label="Vis" value={`${visMi} mi`} />}
-              {popPct != null && popPct > 0 && <HeroStatChip label="Rain" value={`${popPct}%`} />}
-            </div>
+        <div className="w-full min-w-0 space-y-2.5 sm:space-y-3">
+          <CityPickerStrip
+            locations={locations}
+            selectedQuery={selectedQuery}
+            setSelectedQuery={setSelectedQuery}
+            setOpen={setOpen}
+            weatherThemeId={weatherThemeId}
+            variant="hero"
+          />
+          <WeatherMini
+            data={vm}
+            joke={null}
+            onOpen={() => setOpen(true)}
+            compact
+            weatherThemeId={weatherThemeId}
+            className="border border-white/15 shadow-none"
+          />
+          <div className="flex flex-wrap justify-start gap-1.5 border-t border-white/10 pt-2.5 sm:justify-end sm:pt-3">
+            <HeroStatChip label="Feels" value={feels != null ? `${feels}°` : null} />
+            <HeroStatChip label="Wind" value={windLine} />
+            <HeroStatChip label="Hum" value={humidity != null ? `${humidity}%` : null} />
+            <HeroStatChip label="Press" value={pressureVal} />
+            {visMi != null && <HeroStatChip label="Vis" value={`${visMi} mi`} />}
+            {popPct != null && popPct > 0 && <HeroStatChip label="Rain" value={`${popPct}%`} />}
           </div>
+          <HeroExtrasRotator joke={joke} news={news} sports={sports} />
         </div>
         {panel}
       </>
@@ -640,34 +608,42 @@ export default function DashboardWeatherBar({ variant = 'default' }) {
           />
           <WeatherMini
             data={vm}
-            joke={joke}
+            joke={null}
             onOpen={() => setOpen(true)}
             weatherThemeId={weatherThemeId}
             className="shadow-md ring-1 ring-slate-900/5 dark:ring-white/10"
           />
-          <WeatherWidgetNews news={news} variant="default" />
-          <WeatherWidgetSports sports={sports} />
-          <div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-2.5 dark:border-slate-700 sm:flex sm:flex-wrap sm:pt-3">
+          <div className="grid grid-cols-1 gap-2 border-t border-slate-200 pt-2.5 dark:border-slate-700 sm:grid-cols-3 sm:pt-3">
             <StatPill label="Feels like" value={feels != null ? `${feels}°` : null} />
             <StatPill label="Wind" value={windLine} />
             <StatPill label="Humidity" value={humidity != null ? `${humidity}%` : null} />
-            <StatPill
-              label="Pressure"
-              value={
-                pressureInHg != null
-                  ? `${pressureInHg} inHg`
-                  : pressureHpa != null
-                    ? `${pressureHpa} hPa`
-                    : null
-              }
-              sub={pressureInHg != null && pressureHpa != null ? `${pressureHpa} hPa` : undefined}
-            />
-            {visMi != null && <StatPill label="Visibility" value={`${visMi} mi`} />}
-            {popPct != null && popPct > 0 && <StatPill label="Precip chance" value={`${popPct}%`} />}
-            {precipIn != null && Number(precipIn) > 0 && (
-              <StatPill label="Precip (now)" value={`${precipIn} in`} />
-            )}
           </div>
+          {hasExtraStats && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowMoreStats((v) => !v)}
+                aria-expanded={showMoreStats}
+                className="text-xs font-medium text-slate-600 hover:underline dark:text-slate-300"
+              >
+                {showMoreStats ? 'Hide details' : 'More weather details'}
+              </button>
+              {showMoreStats && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70">
+                  <div className="grid grid-cols-1 gap-1.5 text-xs text-slate-700 dark:text-slate-200 sm:grid-cols-2">
+                    {extraStatRows.map((item) => (
+                      <p key={item.label}>
+                        <span className="font-semibold">{item.label}:</span> {item.value}
+                        {item.sub ? <span className="text-slate-500 dark:text-slate-400"> · {item.sub}</span> : null}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <HeroExtrasRotator joke={joke} news={news} sports={sports} variant="default" />
+
         </div>
       </div>
       {panel}

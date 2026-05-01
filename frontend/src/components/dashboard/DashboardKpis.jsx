@@ -28,7 +28,7 @@ export default function DashboardKpis({
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-blue-100">{"Today's Jobs"}</p>
             <p className="mt-1 text-4xl font-bold">{todayJobs}</p>
-            <p className="mt-1 text-xs text-blue-100">{pendingToday} pending · {completedToday} completed</p>
+            <p className="mt-1 text-xs text-blue-100">{pendingToday} left · {completedToday} done</p>
           </div>
         </Link>
         <Link
@@ -36,9 +36,9 @@ export default function DashboardKpis({
           className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-5 shadow-md text-white flex items-start gap-4 transition-transform hover:scale-[1.01]"
         >
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-100">Completed Today</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-100">Done Today</p>
             <p className="mt-1 text-4xl font-bold">{completedToday}</p>
-            <p className="mt-1 text-xs text-emerald-100">Field completions logged.</p>
+            <p className="mt-1 text-xs text-emerald-100">Jobs finished today.</p>
           </div>
         </Link>
         <Link
@@ -46,9 +46,9 @@ export default function DashboardKpis({
           className="rounded-xl bg-gradient-to-br from-orange-400 to-orange-500 p-5 shadow-md text-white flex items-start gap-4 transition-transform hover:scale-[1.01]"
         >
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-100">Pending Today</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-100">Left Today</p>
             <p className="mt-1 text-4xl font-bold">{pendingToday}</p>
-            <p className="mt-1 text-xs text-orange-100">Still on the schedule.</p>
+            <p className="mt-1 text-xs text-orange-100">Still waiting to be done.</p>
           </div>
         </Link>
       </div>
@@ -60,21 +60,21 @@ export default function DashboardKpis({
               Revenue ({analyticsDays}d)
             </p>
             <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">${totalRevenue.toFixed(2)}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{completedPayments} completed payments</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{completedPayments} paid jobs</p>
           </div>
         )}
         <div className={`${CARD} p-5`}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Total jobs</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">All jobs</p>
           <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{totalJobs}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">In your scope</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">For your team</p>
         </div>
         <div className={`${CARD} p-5`}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Jobs completed</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Jobs done</p>
           <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{jobsCompleted}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">All time · filtered for technicians</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Total completed</p>
         </div>
         <div className={`${CARD} p-5 flex flex-col justify-center`}>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Chart range</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Time range</p>
           <div className="flex flex-wrap gap-2">
             {[7, 30, 90].map((d) => (
               <button

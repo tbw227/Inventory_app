@@ -17,6 +17,7 @@ router.get('/photos/:filename', authenticate, (req, res) => {
   }
   fs.access(resolved, fs.constants.R_OK, (err) => {
     if (err) return res.status(404).json({ error: 'Not found' });
+    res.set('Cache-Control', 'private, max-age=86400, stale-while-revalidate=604800');
     res.sendFile(resolved);
   });
 });

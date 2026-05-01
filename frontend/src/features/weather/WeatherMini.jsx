@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { AnimatedWeather } from './AnimatedWeather';
 import { getWeatherAppearance } from './weatherTheme';
 import { WeatherConditionIcon } from './WeatherConditionIcon';
@@ -22,8 +22,33 @@ export function WeatherMini({
   scenePhotos = true,
   /** CSS rain/cloud/sun layer behind the condition icon (scene mode only). */
   ambientAnimation = true,
+  /** Enable entrance animation */
+  animateEntrance = true,
+  /** Enable tilt effect on hover */
+  enableTilt = true,
 }) {
   const [time, setTime] = useState(() => new Date());
+  const cardRef = useRef(null);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Handle mouse move for tilt effect
+  const handleMouseMove = (e) => {
+    if (!enableTilt || !cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -3;
+    const rotateY = ((x - centerX) / centerX) * 3;
+    setTilt({ x: rotateX, y: rotateY });
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0 });
+    setIsHovered(false);
+  };
 
   useEffect(() => {
     if (!showLiveClock) return undefined
@@ -45,13 +70,27 @@ export function WeatherMini({
   const jokeDivider = scene ? 'border-t border-white/22' : a.ui === 'light' ? 'border-t border-slate-400/45' : 'border-t border-white/20'
 
   const btnBase =
-    'group relative w-full overflow-hidden rounded-2xl text-left shadow-lg transition-all duration-500 hover:scale-[1.02] focus:outline-none focus-visible:ring-2'
+    'group relative w-full overflow-hidden rounded-2xl text-left shadow-lg transition-all duration-500 focus:outline-none focus-visible:ring-2'
   const btnTheme = scene
     ? `${btnBase} ${pad} text-white ring-1 ring-white/15 focus-visible:ring-white/50 ${className}`
     : `${btnBase} bg-gradient-to-br ${a.gradient} ${a.text} ${a.focusRing} ${pad} ${className}`
 
+  // Build transform with tilt
+  const tiltStyle = enableTilt && isHovered
+    ? { transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)` }
+    : {};
+
   return (
-    <button type="button" onClick={onOpen} className={btnTheme}>
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`${btnTheme} ${animateEntrance ? 'animate-slide-up-fade' : ''} ${enableTilt ? 'weather-card-tilt' : ''}`}
+      style={enableTilt ? { ...tiltStyle, transition: 'transform 0.3s ease' } : undefined}
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={handleMouseLeave}
+    >
       {scene ? (
         <WeatherSceneBackdrop
           condition={data.condition}
@@ -88,7 +127,7 @@ export function WeatherMini({
           >
             {scene && ambientAnimation ? (
               <div className="pointer-events-none absolute inset-0" aria-hidden>
-                <AnimatedWeather condition={data.condition} variant="mini" />
+                <AnimatedWeather condition={data.condition} variant="mini" isDay={data.isDay} />
               </div>
             ) : null}
             <span

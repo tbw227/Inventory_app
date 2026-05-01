@@ -444,11 +444,18 @@ export default function InventoryAnalyticsCharts({ analytics, viewerRole = 'admi
           Stock status
         </p>
         <p className="text-2xl font-bold text-slate-900 dark:text-white">
-          {totalSkus} <span className="text-sm font-normal text-slate-500">SKUs</span>
+          {totalSkus} <span className="text-sm font-normal text-slate-500">items (SKUs)</span>
         </p>
-        <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+        <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">
           {totalUnits.toLocaleString()} units on hand
         </p>
+        {totalUnits === 0 ? (
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+            Tip: update <span className="font-medium">Quantity on hand</span> on the Supplies page to reflect warehouse stock.
+          </p>
+        ) : (
+          <div className="mb-3" />
+        )}
         <div className="h-[220px] w-full min-w-0 flex-1 min-h-[200px]">
           {pieData.length === 0 ? (
             <div className="h-full flex items-center justify-center text-xs text-slate-500 border border-dashed rounded-xl">
@@ -543,6 +550,46 @@ export default function InventoryAnalyticsCharts({ analytics, viewerRole = 'admi
             </BarChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Always show the numbers side-by-side as a readable table. */}
+        {barData.length > 0 && (
+          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <table className="min-w-[560px] w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/40">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <th className="px-3 py-2 text-left font-semibold">Item</th>
+                  <th className="px-3 py-2 text-right font-semibold">Warehouse (on hand)</th>
+                  <th className="px-3 py-2 text-right font-semibold">Tech jobs (planned)</th>
+                  <th className="px-3 py-2 text-right font-semibold">Reorder at</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {barData.map((row) => (
+                  <tr key={row.fullName || row.name} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                    <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                      <span className="font-medium">{row.fullName || row.name}</span>
+                      {row.health ? (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {row.health}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                      {Number(row.quantity_on_hand) || 0}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-amber-700 dark:text-amber-300">
+                      {Number(row.quantity_planned_in_field) || 0}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                      {row.reorder_threshold ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {hasTechnicianSection && (
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
             Per-technician breakdown below. Adjust reorder thresholds on the supplies page.
@@ -552,7 +599,7 @@ export default function InventoryAnalyticsCharts({ analytics, viewerRole = 'admi
         </>
       ) : (
         <div className="lg:col-span-5 rounded-xl border border-dashed border-slate-200 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/20 py-8 px-4 text-center">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No warehouse SKUs yet</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No warehouse items yet</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto">
             Add supplies on the <span className="font-medium">Supplies</span> page to unlock stock health and warehouse
             vs field charts.

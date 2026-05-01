@@ -1,229 +1,78 @@
-# Security Checklist & Implementation Guide
+# Security model
 
-## ✅ Phase 1 — MVP Security (NOW COMPLETE)
-
-### HTTP Security Headers
-- [x] **Helmet.js** — automatically sets security headers
-  - X-Frame-Options: Prevent clickjacking
-  - X-Content-Type-Options: Prevent MIME type sniffing
-  - Strict-Transport-Security: Enforce HTTPS
-  - Content-Security-Policy: Prevent XSS attacks
-  - And 10+ more security headers
-
-### Rate Limiting
-- [x] **express-rate-limit** — DDoS/brute force protection
-  - 100 requests per 15 minutes per IP
-  - Configurable per endpoint if needed
-
-### Password Security
-- [x] **bcryptjs** — password hashing with salt
-  - Never store plain-text passwords
-  - 10 salt rounds (secure but not slow)
-  - Passwords hashed before storage in database
-
-### Input Validation
-- [x] **Joi** — comprehensive request validation
-  - Type checking (string, number, date, etc.)
-  - Length validation
-  - Email format validation
-  - MongoDB ObjectId validation
-  - Prevents injection attacks by validating structure
-
-### Error Handling
-- [x] Centralized error handler middleware
-  - Consistent error responses
-  - Stack traces only in development
-  - No sensitive information leaked in production
-
-### Request Logging
-- [x] **Morgan** — HTTP request logging
-  - Development: detailed logs
-  - Production: minimal performance impact
-  - Helps identify suspicious activity
-
-### Database
-- [x] MongoDB parameterized queries via Mongoose
-  - Prevents MongoDB injection attacks
-  - Schema validation at model level
+Current state, design choices, and known gaps. For the prioritised gap list with fixes, see [`AUDIT.md §2`](./AUDIT.md).
 
 ---
 
-## 🚀 Phase 2 — Before Accepting Customers
+## What is in place today
+
+### Transport and headers
+- **Helmet** is mounted with a Content Security Policy that differs between production (strict) and development (allows `unsafe-eval` for Vite HMR). See `backend/app.js`.
+- **CORS** whitelist from `FRONTEND_URL` (comma-separated); production startup fails if `FRONTEND_URL` is empty. Origins without a header (curl, server-to-server) are **not** allowed through. `credentials: true`.
+- HTTPS is terminated by whichever host runs the nginx image (`frontend/nginx.conf`) or upstream load balancer.
 
 ### Authentication
-- [ ] JWT (JSON Web Tokens) middleware
-  - Secure token-based authentication
-  - httpOnly cookies (prevent XSS token theft)
-  - Token expiration & refresh
-  - See: `AUTHENTICATION.md` (to create)
+- **JWT bearer tokens** signed with HS256, 8 h lifetime, required `JWT_SECRET` (`backend/utils/auth.js`, `backend/middleware/auth.js`).
+- **bcryptjs** with 12 salt rounds for password storage.
+- `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/forgot-password`, `/api/v1/auth/reset-password` (`backend/routes/auth.js`).
+- SPA stores the token in `localStorage` (`frontend/src/context/AuthContext.jsx`). This is explicit and documented here; see §"Known gaps" below.
 
-### Authorization (RBAC)
-- [ ] Role-based access control middleware
-  - Technician can only access assigned jobs
-  - Admin can access all company data
-  - Super admin can access all companies
-  - See: `AUTHORIZATION.md` (to create)
+### Authorisation
+- `authorize(...roles)` middleware enforces role on mutating routes. Roles: `admin`, `technician`, `user`.
+- Tenant isolation: every business record carries a `companyId`; services always filter by `req.user.companyId`.
+- Subscription enforcement: `SUBSCRIPTION_ENFORCE` toggle in `backend/middleware/auth.js` blocks `canceled`, `past_due`, and `incomplete` billing states on protected routes.
 
-### HTTPS
-- [ ] Enforce HTTPS in production
-  - Certificate from Let's Encrypt (free)
-  - Redirect HTTP → HTTPS
-  - Set Helmet HSTS headers (done by Helmet)
+### Input handling
+- **Joi** schemas in `backend/middleware/validation.js` with `stripUnknown: true`, `abortEarly: false`. Every mutating route on `users`, `companies`, `clients`, `locations`, `jobs`, `payments`, and supply imports is validated.
+- Prisma is used for all DB access; raw SQL is only used in a handful of read-only reporting queries, always with tagged-template parameters (`backend/services/dashboardService.js`, `paymentService.js`).
+- File uploads go through `multer` with size and MIME filtering (`backend/routes/upload.js`).
 
-### Environment Variables
-- [ ] Never commit `.env` file (already in .gitignore)
-- [ ] Create `.env.example` with template values
-- [ ] Rotate secrets periodically
+### Rate limiting
+- Global limiter with env-configurable window / max (`backend/app.js`), defaulting to 15 min / 100 requests per IP.
+- Stricter per-route limiters on `/login`, `/forgot-password`, `/reset-password` (`backend/routes/auth.js`). `skipSuccessfulRequests: true` on login so a successful user is not throttled behind a brute-force attempt from the same NAT.
 
-### Database Security
-- [ ] Enable MongoDB authentication
-  - Username/password required
-  - Role-based access at DB level
-- [ ] Network isolation (IP whitelisting)
-  - Only app servers can connect to MongoDB
+### Error handling and logging
+- Central error handler (`backend/middleware/errorHandler.js`): generic 500 message in production, full detail only in development. 5xx is routed through winston.
+- **winston** structured JSON in production, silent in test (`backend/config/logger.js`).
+- **Sentry** initialised when `SENTRY_DSN` is set (`backend/config/sentry.js`); 10 % trace sample. Placement note: see [`AUDIT.md §2.6`](./AUDIT.md).
 
-### API Keys (for integrations)
-- [ ] Store API keys in `.env` only
-  - Not in code, not in logs
-  - Rotate quarterly
-- [ ] Use environment-specific keys
+### Secrets
+- No secrets in the repo; `.env` is gitignored and `backend/.env.sample` documents every variable.
+- Stripe / Supabase keys read from env at runtime (`backend/config/stripe.js`, `frontend/src/lib/supabaseClient.js` — anon key only, which is public by design).
 
 ---
 
-## 🔒 Phase 3 — Production Hardening
+## Design choices (ADRs)
 
-### Secrets Management
-- [ ] Use AWS Secrets Manager or HashiCorp Vault
-  - Centralized secret storage
-  - Automatic rotation
-  - Audit logs
-
-### Dependency Scanning
-- [ ] Run `npm audit` regularly
-  - Check for known vulnerabilities
-  - Update vulnerable packages
-
-### CSRF Protection
-- [ ] Add csurf middleware (if using sessions/cookies)
-  - Not critical for stateless JWT APIs
-  - Worth adding for FORM submissions
-
-### Data Encryption
-- [ ] Encrypt sensitive data at rest
-  - Passwords (bcrypt — done)
-  - Payment tokens (via Stripe — handled by Stripe)
-  - Personal data (optional: field-level encryption)
-
-### Audit Logging
-- [ ] Log security events
-  - Login attempts
-  - Permission denials
-  - Admin actions
-  - Data access
-
-### Monitoring & Alerts
-- [ ] Application performance monitoring (APM)
-  - Detect unusual activity
-  - Alert on suspicious patterns
-- [ ] Log aggregation (ELK, CloudWatch, etc.)
-  - Centralized log analysis
-  - Alerting on errors/attacks
+- Stateless JWT: see [`docs/adr/0002-jwt-stateless.md`](./docs/adr/0002-jwt-stateless.md).
+- Supabase anon key in the client is intentional; it is scoped by Row Level Security. If RLS is ever disabled, re-evaluate.
+- CSP allows `'unsafe-eval'` only in non-production to unblock Vite HMR; production CSP is strict.
 
 ---
 
-## 🛠️ Current Implementation
+## Known gaps (owned by `AUDIT.md`)
 
-### Files Added/Modified:
+The following are tracked in the audit doc; when they land, update this page.
 
-**New Files:**
-- `middleware/errorHandler.js` — centralized error handling
-- `middleware/validation.js` — Joi input validation with schemas
-- `middleware/logger.js` — Morgan HTTP logging
-- `utils/auth.js` — password hashing/verification functions
-
-**Modified Files:**
-- `server.js` — added Helmet, rate limiting, logging, error handler
-- `routes/users.js` — added validation, password hashing
-- `routes/companies.js` — added validation, error handling
-- `routes/clients.js` — added validation, error handling
-- `routes/jobs.js` — added validation, error handling
-- `models/User.js` — added email lowercase, email uniqueness
+- **JWT revocation** — no `jti`, no denylist, no refresh token. 8 h exposure window if a token leaks. (`AUDIT.md §2.2`)
+- **Token storage** — `localStorage`. Any XSS on the origin exfiltrates the session. The planned move is memory-only access token + `httpOnly` refresh cookie. (`AUDIT.md §2.5`)
+- **`/health` is public** and hits the DB. Should be split into `liveness` (no DB) and `readiness` (DB, internal only). (`AUDIT.md §2.3`)
+- **Legacy `/api/*`** has no `Deprecation` / `Sunset` headers. (`AUDIT.md §2.4`)
+- **Seed script** logs demo credentials (`AUDIT.md §2.1`).
+- **Swagger** has no per-route `@openapi` annotations (`AUDIT.md §2.7`).
 
 ---
 
-## 🧪 Testing Security
+## Operational practices
 
-Run tests to ensure nothing broke:
-
-```bash
-npm test
-```
-
-All 39 tests should pass. Security doesn't reduce functionality.
+- **Before a release** — run `npm audit --omit=dev --audit-level=high` in both `backend/` and `frontend/`.
+- **Quarterly** — rotate `JWT_SECRET` (invalidates all sessions — communicate downtime), review role assignments, run `git log --all -p -S"BEGIN RSA"` (or similar) to confirm no secret has entered history.
+- **On any security report** — open a private issue, do not discuss in public PRs. Patch on a branch, run tests, release, then post a summary.
 
 ---
 
-## 📋 Security Best Practices Implemented
+## Questions
 
-✅ **Defense in Depth** — multiple layers
-- Helmet headers
-- Rate limiting
-- Input validation
-- Password hashing
-- Error handling
-
-✅ **Least Privilege** — users/roles have minimal necessary access
-- Technicians see only assigned jobs
-- Admins see company data only
-- Multi-tenant isolation
-
-✅ **Secure Defaults**
-- JSON limit prevents uploading massive files
-- Password minimum 6 characters (enforce stronger later)
-- Email must be unique (prevents duplicate accounts)
-
-✅ **Fail Securely**
-- Errors don't reveal sensitive info
-- Invalid input rejected clearly
-- Database errors logged but generic response sent
-
-✅ **Never Trust User Input**
-- All requests validated with Joi
-- Unknown fields stripped
-- Email format checked
-- ObjectIds validated
-
----
-
-## 🚨 What NOT to Do
-
-❌ Store passwords in plain text
-❌ Log sensitive data (passwords, tokens, payment info)
-❌ Skip input validation to "move faster"
-❌ Use default/weak JWT secrets
-❌ Disable HTTPS to reduce CPU
-❌ Commit `.env` or secrets
-❌ Build custom encryption (use proven libraries)
-❌ Trust user IDs from requests (validate ownership)
-❌ Expose error stack traces to users
-❌ Mix authentication with business logic
-
----
-
-## 🔄 Security Review Checklist (Monthly)
-
-- [ ] Run `npm audit` and update vulnerable packages
-- [ ] Review recent error logs for suspicious patterns
-- [ ] Check rate limit logs for DDoS attempts
-- [ ] Audit user permissions (especially admins)
-- [ ] Review password policy (stronger passwords?)
-- [ ] Check for exposed secrets in git history: `git log --all --grep=password`
-- [ ] Update security headers if new vulnerabilities announced
-
----
-
-## Questions?
-
-See [TESTING.md](TESTING.md) for testing with new security layers.
-
-Next: Build authentication system (Phase 2) when ready.
+- Where are passwords validated? `backend/middleware/validation.js` (minimum length + complexity) and `backend/utils/auth.js` (hashing only).
+- Where is the auth middleware? `backend/middleware/auth.js`. Every protected route uses `requireAuth` and, where needed, `authorize(...)`.
+- Does the SPA hit the API cross-origin? In development yes (`http://localhost:5174` → `http://localhost:5000`); CORS whitelist must include the dev origin. In production the SPA and API sit behind the same nginx, so it is same-origin.

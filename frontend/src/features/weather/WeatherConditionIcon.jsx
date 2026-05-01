@@ -19,28 +19,33 @@ export function resolveWeatherIconKind(condition, main, isDay) {
 
 const baseSvg = {
   className: '',
-  fill: 'currentColor',
+  fill: 'none',
   viewBox: '0 0 64 64',
   xmlns: 'http://www.w3.org/2000/svg',
+}
+
+const strokeBase = {
+  stroke: 'currentColor',
+  strokeWidth: 3,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
 }
 
 function IconClearDay(props) {
   return (
     <svg {...baseSvg} {...props}>
-      <circle cx="32" cy="28" r="11" opacity="0.9" />
+      <circle cx="32" cy="28" r="9" fill="currentColor" opacity="0.92" />
       {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
         const rad = (deg * Math.PI) / 180
         return (
           <line
             key={deg}
-            x1={32 + Math.cos(rad) * 14}
-            y1={28 + Math.sin(rad) * 14}
-            x2={32 + Math.cos(rad) * 20}
-            y2={28 + Math.sin(rad) * 20}
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            opacity="0.85"
+            x1={32 + Math.cos(rad) * 13}
+            y1={28 + Math.sin(rad) * 13}
+            x2={32 + Math.cos(rad) * 19}
+            y2={28 + Math.sin(rad) * 19}
+            {...strokeBase}
+            opacity="0.9"
           />
         )
       })}
@@ -52,12 +57,13 @@ function IconClearNight(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M36 18c-8 0-14 6-14 14 0 7 5 13 12 14-2-1-3-3-3-6 0-4 3-7 7-7 2 0 4 1 5 2-1-9-8-17-17-17z"
-        opacity="0.92"
+        d="M39 16c-9 0-16 7-16 16 0 8 6 14 13 15-3-2-5-5-5-9 0-6 5-11 11-11 2 0 4 .5 6 1.5C47 22 43 16 39 16z"
+        fill="currentColor"
+        opacity="0.9"
       />
-      <circle cx="46" cy="22" r="1.5" opacity="0.7" />
-      <circle cx="50" cy="30" r="1" opacity="0.55" />
-      <circle cx="42" cy="36" r="1" opacity="0.5" />
+      <circle cx="49" cy="21" r="1.3" fill="currentColor" opacity="0.75" />
+      <circle cx="52" cy="29" r="1" fill="currentColor" opacity="0.6" />
+      <circle cx="45" cy="35" r="1" fill="currentColor" opacity="0.55" />
     </svg>
   )
 }
@@ -66,8 +72,9 @@ function IconCloud(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M48 38c4 0 8-3 8-8s-3.5-7.5-8-8c-1-7-7-12-15-12-7 0-13 4-15 11-5 1-9 5-9 11 0 6 5 11 11 11h28z"
-        opacity="0.92"
+        d="M19 42h27c5 0 9-4 9-9 0-4-3-8-7-9-1-6-6-10-13-10-6 0-11 3-13 9-5 1-9 5-9 10 0 5 4 9 9 9z"
+        fill="currentColor"
+        opacity="0.9"
       />
     </svg>
   )
@@ -76,8 +83,8 @@ function IconCloud(props) {
 function IconPartlyDay(props) {
   return (
     <svg {...baseSvg} {...props}>
-      <circle cx="22" cy="22" r="8" opacity="0.95" />
-      {[0, 90, 180, 270].map((deg) => {
+      <circle cx="22" cy="22" r="7.5" fill="currentColor" opacity="0.92" />
+      {[0, 60, 120, 180, 240, 300].map((deg) => {
         const rad = (deg * Math.PI) / 180
         return (
           <line
@@ -86,15 +93,15 @@ function IconPartlyDay(props) {
             y1={22 + Math.sin(rad) * 10}
             x2={22 + Math.cos(rad) * 14}
             y2={22 + Math.sin(rad) * 14}
-            stroke="currentColor"
+            {...strokeBase}
             strokeWidth="2.5"
-            strokeLinecap="round"
             opacity="0.85"
           />
         )
       })}
       <path
-        d="M52 40c3 0 6-2 6-6s-2.5-5.5-6-6c-1-5-5-9-11-9-5 0-9 3-11 8-4 0-7 3-7 7 0 4 3 7 7 7h22z"
+        d="M30 42h20c4 0 8-3 8-7s-3-7-7-8c-1-5-5-8-10-8s-9 3-10 8c-4 1-7 4-7 8s3 7 6 7z"
+        fill="currentColor"
         opacity="0.9"
       />
     </svg>
@@ -105,11 +112,13 @@ function IconPartlyNight(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M24 16c-6 0-11 5-11 11 0 5 3 9 8 11-1-1-2-3-2-5 0-4 3-7 7-7 1 0 3 0 4 1-1-6-6-11-12-11z"
+        d="M24 16c-6 0-11 5-11 11 0 5 3 9 8 11-2-1-3-3-3-6 0-4 3-7 7-7 1 0 3 .4 4 1.2-1-5-5-10-10-10z"
+        fill="currentColor"
         opacity="0.88"
       />
       <path
-        d="M52 40c3 0 6-2 6-6s-2.5-5.5-6-6c-1-5-5-9-11-9-5 0-9 3-11 8-4 0-7 3-7 7 0 4 3 7 7 7h22z"
+        d="M30 42h20c4 0 8-3 8-7s-3-7-7-8c-1-5-5-8-10-8s-9 3-10 8c-4 1-7 4-7 8s3 7 6 7z"
+        fill="currentColor"
         opacity="0.9"
       />
     </svg>
@@ -120,20 +129,20 @@ function IconRain(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M48 34c4 0 8-3 8-8s-3.5-7.5-8-8c-1-7-7-12-15-12-7 0-13 4-15 11-5 1-9 5-9 11 0 6 5 11 11 11h28z"
-        opacity="0.92"
+        d="M19 38h27c5 0 9-4 9-9 0-4-3-8-7-9-1-6-6-10-13-10-6 0-11 3-13 9-5 1-9 5-9 10 0 5 4 9 9 9z"
+        fill="currentColor"
+        opacity="0.9"
       />
-      {[18, 28, 38, 30, 40].map((x, i) => (
+      {[20, 29, 38, 47].map((x, i) => (
         <line
           key={i}
           x1={x}
           y1={42}
-          x2={x - 3}
-          y2={52}
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          opacity="0.75"
+          x2={x - 2.8}
+          y2={51}
+          {...strokeBase}
+          strokeWidth="2.4"
+          opacity="0.8"
         />
       ))}
     </svg>
@@ -144,17 +153,17 @@ function IconSnow(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M48 34c4 0 8-3 8-8s-3.5-7.5-8-8c-1-7-7-12-15-12-7 0-13 4-15 11-5 1-9 5-9 11 0 6 5 11 11 11h28z"
-        opacity="0.92"
+        d="M19 38h27c5 0 9-4 9-9 0-4-3-8-7-9-1-6-6-10-13-10-6 0-11 3-13 9-5 1-9 5-9 10 0 5 4 9 9 9z"
+        fill="currentColor"
+        opacity="0.9"
       />
-      {[
-        [22, 46],
-        [32, 50],
-        [42, 46],
-        [28, 54],
-        [38, 54],
-      ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="2" opacity="0.8" />
+      {[[24, 46], [32, 50], [40, 46]].map(([x, y], i) => (
+        <g key={i} opacity="0.82">
+          <line x1={x} y1={y - 2.2} x2={x} y2={y + 2.2} {...strokeBase} strokeWidth="1.8" />
+          <line x1={x - 2.2} y1={y} x2={x + 2.2} y2={y} {...strokeBase} strokeWidth="1.8" />
+          <line x1={x - 1.6} y1={y - 1.6} x2={x + 1.6} y2={y + 1.6} {...strokeBase} strokeWidth="1.6" />
+          <line x1={x - 1.6} y1={y + 1.6} x2={x + 1.6} y2={y - 1.6} {...strokeBase} strokeWidth="1.6" />
+        </g>
       ))}
     </svg>
   )
@@ -164,10 +173,11 @@ function IconThunder(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M48 32c4 0 8-3 8-8s-3.5-7.5-8-8c-1-7-7-12-15-12-7 0-13 4-15 11-5 1-9 5-9 11 0 6 5 11 11 11h28z"
+        d="M19 36h27c5 0 9-4 9-9 0-4-3-8-7-9-1-6-6-10-13-10-6 0-11 3-13 9-5 1-9 5-9 10 0 5 4 9 9 9z"
+        fill="currentColor"
         opacity="0.9"
       />
-      <path d="M30 36 L26 48 L34 44 L28 58 L40 40 L32 42 Z" opacity="0.95" />
+      <path d="M31 37l-4 11 7-2-4 12 12-16-8 2 3-7z" fill="currentColor" opacity="0.96" />
     </svg>
   )
 }
@@ -176,12 +186,13 @@ function IconFog(props) {
   return (
     <svg {...baseSvg} {...props}>
       <path
-        d="M48 30c4 0 8-3 8-7s-3.5-6.5-8-7c-1-6-7-11-15-11-7 0-13 4-15 10-5 1-9 4-9 9 0 5 4 9 9 9h30z"
-        opacity="0.75"
+        d="M19 32h27c5 0 9-3.5 9-8 0-4-3-7-7-8-1-6-6-10-13-10-6 0-11 3-13 9-5 1-9 4.5-9 9s4 8 9 8z"
+        fill="currentColor"
+        opacity="0.72"
       />
-      <line x1="12" y1="44" x2="52" y2="44" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
-      <line x1="16" y1="52" x2="48" y2="52" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.45" />
-      <line x1="20" y1="58" x2="44" y2="58" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
+      <line x1="14" y1="42" x2="50" y2="42" {...strokeBase} opacity="0.52" />
+      <line x1="18" y1="49" x2="46" y2="49" {...strokeBase} opacity="0.48" />
+      <line x1="22" y1="56" x2="42" y2="56" {...strokeBase} opacity="0.44" />
     </svg>
   )
 }

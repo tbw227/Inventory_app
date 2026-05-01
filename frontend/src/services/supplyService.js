@@ -5,4 +5,5 @@ export const supplyService = {
   create: (data) => api.post('/supplies', data),
   update: (id, data) => api.put(`/supplies/${id}`, data),
   remove: (id) => api.delete(`/supplies/${id}`),
+  emailExport: (data) => api.post('/supplies/export/email', data),
 }

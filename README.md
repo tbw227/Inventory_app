@@ -64,6 +64,22 @@ npm run dev
 
 ---
 
+## Frontend Performance Notes
+
+`frontend/vite.config.js` includes two build-time performance controls:
+
+- **Precompression:** outputs `.gz` and `.br` assets via `vite-plugin-compression` for compatible hosts/CDNs.
+- **Manual vendor chunking:** separates stable framework code from heavier feature dependencies for better browser caching.
+
+### Maintainer checklist (when adding frontend dependencies)
+
+1. Add new heavy libs to the `manualChunks()` groups in `frontend/vite.config.js`.
+2. Run `npm run build --prefix frontend` and compare chunk output sizes.
+3. Prefer route/feature lazy loading for new heavy pages/components.
+4. Keep chunk groups explicit; avoid over-splitting into many tiny chunks.
+
+---
+
 ## API overview
 
 Prefer **`/api/v1/...`**; **`/api/...`** is kept for backward compatibility.
@@ -140,7 +156,12 @@ Frontend samples: [`frontend/.env.sample`](frontend/.env.sample).
 
 | Document | Notes |
 |----------|--------|
-| [docs/DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md) | **Current** — data fetching, caching, auth notes |
+| [AUDIT.md](./AUDIT.md) | **Current** — full project audit with prioritised fixes (security, perf, testing, a11y, architecture, DevOps, docs) |
+| [docs/DEVELOPER_ONBOARDING.md](./docs/DEVELOPER_ONBOARDING.md) | Patterns: data fetching, abort controllers, dashboard cache, auth notes |
+| [SECURITY.md](./SECURITY.md) | Current security model + known gaps (pointers into `AUDIT.md §2`) |
+| [docs/PERFORMANCE.md](./docs/PERFORMANCE.md) | SLO targets, how to measure, regression prevention |
+| [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) | WCAG 2.2 AA baseline, required patterns, tooling |
+| [docs/adr/](./docs/adr/) | Architecture decision records (Prisma, JWT, Supabase) |
 | [SUPABASE.md](./SUPABASE.md) | Hosted Postgres setup |
 | [COMMIT_GUIDE.md](./COMMIT_GUIDE.md) | Commit conventions |
 | [QUICKREF.md](./QUICKREF.md) | Command cheat sheet |

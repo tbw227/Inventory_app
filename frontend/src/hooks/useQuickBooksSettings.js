@@ -19,7 +19,7 @@ export function useQuickBooksSettings({ isAdmin, searchParams, setSearchParams }
         if (!cancelled) setQboStatus(res.data || { connected: false })
       })
       .catch((e) => {
-        if (!cancelled) setQboErr(e?.response?.data?.error || e?.message || 'Could not load QuickBooks status')
+        if (!cancelled) setQboErr(e?.response?.data?.error || e?.message || 'Could not load QuickBooks connection status')
       })
       .finally(() => {
         if (!cancelled) setQboLoading(false)
@@ -34,13 +34,13 @@ export function useQuickBooksSettings({ isAdmin, searchParams, setSearchParams }
     const st = searchParams.get('status')
     if (integ !== 'qbo' || !st) return
     if (st === 'connected') {
-      setQboMsg('QuickBooks connected for your organization.')
+      setQboMsg('QuickBooks connected.')
       setQboStatus((prev) => ({ ...(prev || {}), connected: true }))
     } else {
       setQboErr(
         st === 'missing_params'
-          ? 'QuickBooks returned an incomplete response. Try connecting again.'
-          : 'QuickBooks connection did not finish. Check server Intuit settings and try again.'
+          ? 'QuickBooks setup was incomplete. Please try again.'
+          : 'QuickBooks connection did not finish. Please try again.'
       )
     }
     searchParams.delete('integration')
@@ -56,7 +56,7 @@ export function useQuickBooksSettings({ isAdmin, searchParams, setSearchParams }
       const res = await api.get('/integrations/quickbooks/authorize-url')
       const url = res.data?.authorization_url
       if (url) window.location.href = url
-      else setQboErr('No authorization URL returned')
+      else setQboErr('Could not start QuickBooks connection. Please try again.')
     } catch (e) {
       setQboErr(e?.response?.data?.error || e?.message || 'Could not start QuickBooks connection')
     } finally {
@@ -73,7 +73,7 @@ export function useQuickBooksSettings({ isAdmin, searchParams, setSearchParams }
       setQboStatus({ connected: false })
       setQboMsg('QuickBooks disconnected.')
     } catch (e) {
-      setQboErr(e?.response?.data?.error || e?.message || 'Could not disconnect')
+      setQboErr(e?.response?.data?.error || e?.message || 'Could not disconnect QuickBooks')
     } finally {
       setQboBusy(false)
     }

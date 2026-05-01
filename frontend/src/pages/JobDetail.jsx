@@ -8,6 +8,9 @@ import { paymentService } from '../services/paymentService'
 import PaymentForm from '../components/ui/PaymentForm'
 import AuthedImg from '../components/ui/AuthedImg'
 import { getJobLocations } from '../utils/jobLocations'
+import toast from 'react-hot-toast'
+import CameraCaptureModal from '../components/tech/CameraCaptureModal'
+import SupplyQrScanModal from '../components/tech/SupplyQrScanModal'
 
 export default function JobDetail() {
   const { id } = useParams()
@@ -30,6 +33,8 @@ export default function JobDetail() {
   const [billingDraft, setBillingDraft] = useState('')
   const [billingSaving, setBillingSaving] = useState(false)
   const [billingError, setBillingError] = useState(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
+  const [supplyQrOpen, setSupplyQrOpen] = useState(false)
 
   const fetchPayments = useCallback(() => {
     if (!id) return
@@ -55,6 +60,51 @@ export default function JobDetail() {
   useEffect(() => {
     api.get('/supplies').then(res => setSuppliesList(unwrapList(res.data))).catch(() => {})
   }, [])
+
+  const addOrMergeSupplyUsed = useCallback(
+    async (items) => {
+      const normalized = (items || []).filter(Boolean)
+      if (!normalized.length) return
+
+      const unknownIds = []
+      const mapped = normalized
+        .map((it) => {
+          const supply = suppliesList.find((s) => s._id === it.supplyId)
+          if (!supply) {
+            unknownIds.push(it.supplyId)
+            return null
+          }
+          return { name: supply.name, quantity: it.quantity }
+        })
+        .filter(Boolean)
+
+      if (unknownIds.length) {
+        toast.error(
+          `Some supplies were not recognized (${Array.from(new Set(unknownIds)).slice(0, 2).join(', ')}${
+            unknownIds.length > 2 ? '…' : ''
+          })`
+        )
+      }
+
+      if (!mapped.length) return
+
+      // Persist to backend immediately so scans survive refresh and stay consistent.
+      await api.post(`/jobs/${id}/inventory`, { items: mapped })
+
+      setSuppliesUsed((prev) => {
+        const next = [...prev]
+        for (const m of mapped) {
+          const idx = next.findIndex((x) => x.name === m.name)
+          if (idx >= 0) next[idx] = { ...next[idx], quantity: next[idx].quantity + m.quantity }
+          else next.push(m)
+        }
+        return next
+      })
+
+      toast.success(`Scanned ${mapped.length} supply${mapped.length === 1 ? '' : 'ies'}`)
+    },
+    [suppliesList, id]
+  )
 
   useEffect(() => {
     const clientId = job?.client_id?._id
@@ -172,9 +222,11 @@ export default function JobDetail() {
   const clientContact = job.client_id?.contact_info || ''
   const stations = getJobLocations(job)
   const techName = job.assigned_user_id?.name || 'Unassigned'
+  const showMobileStickyComplete = user?.role !== 'admin'
 
   return (
-    <div className="job-container max-w-2xl mx-auto px-4 py-6">
+    <>
+      <div className="job-container max-w-2xl mx-auto px-4 py-6 pb-28">
       <button
         onClick={() => navigate('/jobs')}
         className="text-sm text-gray-500 hover:text-gray-700 mb-4 inline-flex items-center"
@@ -396,6 +448,13 @@ export default function JobDetail() {
                 >
                   + Add Supply
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSupplyQrOpen(true)}
+                  className="py-2 px-4 w-full sm:w-auto bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors active:scale-[0.99]"
+                >
+                  Scan Supply QR
+                </button>
               </div>
             </div>
 
@@ -409,10 +468,21 @@ export default function JobDetail() {
                   </div>
                 ))}
               </div>
-              <label className="inline-block w-full py-3 px-4 border-2 border-dashed border-gray-300 rounded-md text-center text-sm text-gray-600 cursor-pointer hover:border-blue-400 hover:bg-blue-50">
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} disabled={uploadingPhoto} />
-                {uploadingPhoto ? 'Uploading...' : 'Take / Choose Photo'}
-              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label className="inline-block w-full py-3 px-4 border-2 border-dashed border-gray-300 rounded-md text-center text-sm text-gray-600 cursor-pointer hover:border-blue-400 hover:bg-blue-50">
+                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} disabled={uploadingPhoto} />
+                  {uploadingPhoto ? 'Uploading...' : 'Take / Choose Photo'}
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setCameraOpen(true)}
+                  disabled={uploadingPhoto}
+                  className="w-full py-3 px-4 border-2 border-dashed border-blue-300 rounded-md text-center text-sm font-medium text-blue-800 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-[0.99]"
+                >
+                  Capture Photo
+                </button>
+              </div>
             </div>
 
             <div>
@@ -443,10 +513,24 @@ export default function JobDetail() {
               </div>
             )}
 
+            {showMobileStickyComplete && (
+              <div className="fixed left-0 right-0 bottom-16 px-4 lg:hidden">
+                <button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="w-full h-14 bg-green-600 text-white text-lg font-semibold rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-[0.99]"
+                >
+                  {completing ? 'Completing…' : 'Complete Job'}
+                </button>
+              </div>
+            )}
+
             <button
               onClick={handleComplete}
               disabled={completing}
-              className="w-full py-4 bg-green-600 text-white text-lg font-medium rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`w-full py-4 bg-green-600 text-white text-lg font-medium rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                showMobileStickyComplete ? 'hidden lg:block' : ''
+              }`}
             >
               {completing ? 'Completing...' : 'Complete Job'}
             </button>
@@ -522,6 +606,27 @@ export default function JobDetail() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+
+      <SupplyQrScanModal
+        open={supplyQrOpen}
+        onClose={() => setSupplyQrOpen(false)}
+        onScanned={(parsed) => {
+          if (parsed?.kind === 'supplies') {
+            addOrMergeSupplyUsed(parsed.items).catch((e) => {
+              toast.error(e?.response?.data?.error || e?.message || 'Failed to update inventory')
+            })
+          }
+        }}
+      />
+      <CameraCaptureModal
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onUploaded={(url) => {
+          setPhotos((prev) => [...prev, url])
+          toast.success('Photo added')
+        }}
+      />
+    </>
   )
 }

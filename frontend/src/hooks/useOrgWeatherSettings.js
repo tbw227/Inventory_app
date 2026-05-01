@@ -27,7 +27,7 @@ export function useOrgWeatherSettings(isAdmin) {
         setOrgWeatherLocs(wl.length ? wl.map((x) => ({ label: x.label || '', query: x.query || '' })) : [])
       })
       .catch((e) => {
-        if (!cancelled) setOrgWeatherErr(e?.response?.data?.error || e?.message || 'Could not load organization')
+        if (!cancelled) setOrgWeatherErr(e?.response?.data?.error || e?.message || 'Could not load company settings')
       })
       .finally(() => {
         if (!cancelled) setOrgWeatherLoading(false)

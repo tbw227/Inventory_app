@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useId } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTheme } from '../context/ThemeContext'
 import { useAuth } from '../context/AuthContext'
@@ -73,6 +73,30 @@ function MessageError({ children }) {
     >
       {children}
     </p>
+  )
+}
+
+function HelpDot({ text }) {
+  const tooltipId = useId()
+
+  return (
+    <span className="relative inline-flex items-center group">
+      <button
+        type="button"
+        aria-label="Help"
+        aria-describedby={tooltipId}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-700 align-middle dark:bg-slate-700 dark:text-slate-200 cursor-help focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900"
+      >
+        ?
+      </button>
+      <span
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 top-full z-20 mt-1 w-56 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-normal leading-relaxed text-slate-700 opacity-0 shadow-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+      >
+        {text}
+      </span>
+    </span>
   )
 }
 
@@ -205,7 +229,7 @@ export default function Settings() {
           Settings
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-          Personal preferences apply to your account only. Organization sections are visible to administrators.
+          Personal settings affect only your account. Company settings are visible only to admins.
         </p>
         <p className="mt-3 text-sm">
           <Link
@@ -224,7 +248,7 @@ export default function Settings() {
           Appearance
         </a>
         <a href="#settings-dashboard" className={navPillClass}>
-          Dashboard &amp; forecast
+          Dashboard &amp; weather
         </a>
         <a href="#settings-accessibility" className={navPillClass}>
           Accessibility
@@ -238,7 +262,7 @@ export default function Settings() {
               QuickBooks
             </a>
             <a href="#settings-org-weather" className={navPillClass}>
-              Office weather
+              Office locations
             </a>
           </>
         )}
@@ -261,8 +285,8 @@ export default function Settings() {
             Theme updates immediately and is stored in this browser.
           </p>
           <div className="mt-6">
-            <label htmlFor="settings-app-theme" className={labelClass}>
-              App theme
+            <label htmlFor="settings-app-theme" className={`${labelClass} inline-flex items-center gap-1.5`}>
+              App theme <HelpDot text="Changes how the app looks on this device only." />
             </label>
             <select
               id="settings-app-theme"
@@ -293,16 +317,16 @@ export default function Settings() {
             Dashboard &amp; forecast
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Saved to your account. Affects the dashboard hero, weather card styling, and your default forecast location.
+            Saved to your account. Changes your dashboard look and your default weather location.
           </p>
 
           <div className="mt-6 space-y-6">
             <div>
-              <label htmlFor="settings-weather-theme" className={labelClass}>
-                Weather look
+              <label htmlFor="settings-weather-theme" className={`${labelClass} inline-flex items-center gap-1.5`}>
+                Weather look <HelpDot text="Changes only the weather card style, not the weather data." />
               </label>
               <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-                Current season (meteorological, Northern Hemisphere):{' '}
+                Current season:{' '}
                 <span className="font-semibold text-slate-700 dark:text-slate-200">{metroSeason.label}</span>
                 <span className="text-slate-400"> ({metroSeason.monthRange})</span>
               </p>
@@ -335,8 +359,8 @@ export default function Settings() {
             </div>
 
             <div>
-              <label htmlFor="settings-dashboard-accent" className={labelClass}>
-                Dashboard accent color
+              <label htmlFor="settings-dashboard-accent" className={`${labelClass} inline-flex items-center gap-1.5`}>
+                Dashboard accent color <HelpDot text="Updates dashboard highlight colors like buttons and links." />
               </label>
               <select
                 id="settings-dashboard-accent"
@@ -355,13 +379,13 @@ export default function Settings() {
                 ))}
               </select>
               <p id={dashboardAccentHintId} className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                Hero banner, primary buttons, and accent links on the dashboard.
+                Controls the main color accents on your dashboard.
               </p>
             </div>
 
             <div>
-              <label htmlFor="settings-forecast-city" className={labelClass}>
-                Forecast location
+              <label htmlFor="settings-forecast-city" className={`${labelClass} inline-flex items-center gap-1.5`}>
+                Forecast location <HelpDot text="City format: City,ST,US. Leave empty to use your company default." />
               </label>
               <input
                 id="settings-forecast-city"
@@ -374,8 +398,8 @@ export default function Settings() {
                 aria-describedby={forecastCityHintId}
               />
               <p id={forecastCityHintId} className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                Use <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px] dark:bg-slate-800">City,ST,US</code> when
-                the state matters. Clear the field to use the server default city.
+                Enter a city like <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px] dark:bg-slate-800">Olathe,KS,US</code>.
+                Leave blank to use your company default.
               </p>
             </div>
           </div>
@@ -408,7 +432,7 @@ export default function Settings() {
             Accessibility
           </h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Read aloud uses your browser’s text-to-speech engine on the main app panel (the area next to the sidebar).
+            Read aloud uses your browser voice to read the main page content.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <button
@@ -441,9 +465,7 @@ export default function Settings() {
               Organization billing
             </h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Subscriptions are processed by Stripe. Server env must include valid{' '}
-              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs dark:bg-slate-800">STRIPE_PRICE_*</code> price
-              IDs.
+              Manage your company plan and payment method.
             </p>
 
             <div
@@ -487,9 +509,11 @@ export default function Settings() {
             </div>
 
             <fieldset className="mt-6 space-y-4 border-0 p-0">
-              <legend className="text-sm font-medium text-slate-800 dark:text-slate-200">Plans</legend>
+              <legend className="text-sm font-medium text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5">
+                Plans <HelpDot text="Selecting a plan opens a secure checkout page. You can cancel there." />
+              </legend>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Choose a plan to open Stripe Checkout, or manage payment methods in the portal.
+                Pick a plan or open billing to update your payment method.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -532,6 +556,9 @@ export default function Settings() {
               >
                 Manage billing in Stripe
               </button>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5">
+                Need help? <HelpDot text="Billing updates are handled on our secure payment provider page." />
+              </p>
             </div>
           </section>
         )}
@@ -543,13 +570,10 @@ export default function Settings() {
             className={sectionCard}
             headingId="settings-quickbooks-heading"
             title="QuickBooks Online"
-            description="Connect Intuit to preview customers and items for future sync into Clients and shop supplies."
+            description="Connect QuickBooks so your customer and item data can be linked here."
           >
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Requires{' '}
-              <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">INTUIT_CLIENT_ID</code>,{' '}
-              <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">INTUIT_CLIENT_SECRET</code>, and a
-              matching redirect URI on your Intuit developer app.
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5">
+              QuickBooks setup help <HelpDot text="Click Connect QuickBooks and sign in. You can disconnect anytime." />
             </p>
             {qboLoading && (
               <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" role="status">
@@ -574,7 +598,7 @@ export default function Settings() {
                     {qboStatus.connected ? 'Connected' : 'Not connected'}
                   </span>
                   {qboStatus.connected && qboStatus.realm_id && (
-                    <span className="text-slate-500 dark:text-slate-400"> · Realm {qboStatus.realm_id}</span>
+                    <span className="text-slate-500 dark:text-slate-400"> · Account {qboStatus.realm_id}</span>
                   )}
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -600,11 +624,7 @@ export default function Settings() {
                 </div>
                 {qboStatus.connected && (
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Mapping previews (read-only): use the API{' '}
-                    <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">POST /api/v1/integrations/quickbooks/sync/customers</code>{' '}
-                    and{' '}
-                    <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">…/sync/items</code>, or extend the UI
-                    here when you are ready to import.
+                    QuickBooks is connected. Import tools can be added here when you are ready.
                   </p>
                 )}
               </div>
@@ -619,12 +639,10 @@ export default function Settings() {
             className={sectionCard}
             headingId="settings-org-weather-heading"
             title="Office forecast locations"
-            description="Multi-city organizations can list up to eight locations for the dashboard weather picker."
+            description="Add up to eight office locations so your team can switch weather by location."
           >
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Forecasts are cached on the server (
-              <code className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">WEATHER_CACHE_TTL_SEC</code>). If
-              you leave this empty, each person’s forecast location above is used.
+              If you leave this empty, each person’s weather location above is used.
             </p>
 
             {orgWeatherLoading && (
@@ -663,8 +681,8 @@ export default function Settings() {
                       </div>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
-                          <label htmlFor={labelId} className={labelClass}>
-                            Display label
+                          <label htmlFor={labelId} className={`${labelClass} inline-flex items-center gap-1.5`}>
+                            Display label <HelpDot text="A short name your team sees in the weather picker." />
                           </label>
                           <input
                             id={labelId}
@@ -680,8 +698,8 @@ export default function Settings() {
                           />
                         </div>
                         <div>
-                          <label htmlFor={queryId} className={labelClass}>
-                            City search query
+                          <label htmlFor={queryId} className={`${labelClass} inline-flex items-center gap-1.5`}>
+                            City <HelpDot text="Best format: City,ST,US to avoid picking the wrong location." />
                           </label>
                           <input
                             id={queryId}

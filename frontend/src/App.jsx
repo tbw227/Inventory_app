@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import { ROUTES } from './config/routes'
+import { Toaster } from 'react-hot-toast'
 
 const Layout = lazy(() => import('./components/layout/Layout'))
 const Login = lazy(() => import('./pages/Login'))
@@ -13,6 +14,7 @@ const Jobs = lazy(() => import('./pages/Jobs'))
 const JobDetail = lazy(() => import('./pages/JobDetail'))
 const JobLabel = lazy(() => import('./pages/JobLabel'))
 const JobHistory = lazy(() => import('./pages/JobHistory'))
+const Labels = lazy(() => import('./pages/Labels'))
 const ScanJob = lazy(() => import('./pages/ScanJob'))
 const Supplies = lazy(() => import('./pages/Supplies'))
 const PrintLabels = lazy(() => import('./pages/PrintLabels'))
@@ -23,6 +25,7 @@ const Users = lazy(() => import('./pages/Users'))
 const UserDetail = lazy(() => import('./pages/UserDetail'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Settings = lazy(() => import('./pages/Settings'))
+const WeatherDemo = lazy(() => import('./pages/WeatherDemo'))
 
 function RouteFallback() {
   return (
@@ -44,6 +47,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Suspense fallback={<RouteFallback />}>
+        <Toaster position="bottom-center" />
         <Routes>
           <Route path={ROUTES.LOGIN} element={<Login />} />
           <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
@@ -52,17 +56,19 @@ export default function App() {
           <Route path={ROUTES.JOBS} element={<ProtectedLayout><Jobs /></ProtectedLayout>} />
           <Route path="/jobs/:id" element={<ProtectedLayout><JobDetail /></ProtectedLayout>} />
           <Route path="/jobs/:id/label" element={<ProtectedLayout><JobLabel /></ProtectedLayout>} />
+          <Route path={ROUTES.LABELS} element={<ProtectedLayout><Labels /></ProtectedLayout>} />
           <Route path={ROUTES.SCAN} element={<ProtectedLayout><ScanJob /></ProtectedLayout>} />
           <Route path={ROUTES.HISTORY} element={<ProtectedLayout><JobHistory /></ProtectedLayout>} />
           <Route path={ROUTES.SUPPLIES} element={<ProtectedLayout><Supplies /></ProtectedLayout>} />
           <Route path={ROUTES.PRINT_LABELS} element={<ProtectedLayout requiredRole="admin"><PrintLabels /></ProtectedLayout>} />
-          <Route path={ROUTES.CLIENTS} element={<ProtectedLayout requiredRole="admin"><Clients /></ProtectedLayout>} />
-          <Route path="/clients/:id" element={<ProtectedLayout requiredRole="admin"><ClientDetail /></ProtectedLayout>} />
+          <Route path={ROUTES.CLIENTS} element={<ProtectedLayout><Clients /></ProtectedLayout>} />
+          <Route path="/clients/:id" element={<ProtectedLayout><ClientDetail /></ProtectedLayout>} />
           <Route path={ROUTES.LOCATIONS} element={<ProtectedLayout><Locations /></ProtectedLayout>} />
           <Route path={ROUTES.USERS} element={<ProtectedLayout requiredRole="admin"><Users /></ProtectedLayout>} />
           <Route path="/users/:id" element={<ProtectedLayout requiredRole="admin"><UserDetail /></ProtectedLayout>} />
           <Route path={ROUTES.PROFILE} element={<ProtectedLayout><Profile /></ProtectedLayout>} />
           <Route path={ROUTES.SETTINGS} element={<ProtectedLayout><Settings /></ProtectedLayout>} />
+          <Route path={ROUTES.WEATHER_DEMO} element={<WeatherDemo />} />
           <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
           <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
         </Routes>

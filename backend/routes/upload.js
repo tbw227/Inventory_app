@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const sharp = require('sharp');
 const { authenticate } = require('../middleware/auth');
 const uploadController = require('../controllers/uploadController');
 
@@ -12,16 +14,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const safe = Date.now() + '-' + (file.originalname || 'photo').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '');
-    cb(null, safe);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ok = /^image\/(jpeg|png|gif|webp)$/i.test(file.mimetype);
@@ -30,7 +24,47 @@ const upload = multer({
   },
 });
 
-router.post('/', authenticate, upload.single('photo'), uploadController.upload);
+async function optimizeUploadedImage(req, _res, next) {
+  if (!req.file?.buffer) return next();
+
+  try {
+    const sourceBuffer = req.file.buffer;
+    const image = sharp(sourceBuffer, { animated: true });
+    const metadata = await image.metadata();
+    const longestEdge = Math.max(metadata.width || 0, metadata.height || 0);
+    const alreadyOptimizedWebp =
+      req.file.mimetype === 'image/webp' && sourceBuffer.length <= 200 * 1024 && longestEdge <= 1600;
+
+    const finalBuffer = alreadyOptimizedWebp
+      ? sourceBuffer
+      : await sharp(sourceBuffer, { animated: true })
+          .rotate()
+          .resize({
+            width: 1600,
+            height: 1600,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .webp({ quality: 80, effort: 4 })
+          .toBuffer();
+
+    const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.webp`;
+    const targetPath = path.join(uploadsDir, filename);
+    await fs.promises.writeFile(targetPath, finalBuffer);
+
+    req.file.filename = filename;
+    req.file.path = targetPath;
+    req.file.size = finalBuffer.length;
+    req.file.mimetype = 'image/webp';
+  } catch (err) {
+    next(err);
+    return;
+  }
+
+  next();
+}
+
+router.post('/', authenticate, upload.single('photo'), optimizeUploadedImage, uploadController.upload);
 
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {

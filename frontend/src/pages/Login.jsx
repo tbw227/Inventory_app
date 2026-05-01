@@ -39,7 +39,16 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-blue-600 tracking-tight">FireTrack</h1>
+          <div className="flex items-center justify-center">
+            <img
+              src="/images/logo-code3.png"
+              alt="Code 3 First Aid"
+              className="h-20 w-20 rounded-2xl object-cover shadow-sm"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+          <h1 className="mt-4 text-2xl font-bold text-blue-600 tracking-tight">Code 3 First Aid</h1>
           <p className="mt-1 text-sm text-gray-500">Sign in to manage your jobs</p>
         </div>
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">

@@ -27,6 +27,13 @@ router.get(
   authorize('admin'),
   supplyController.importJobStatus
 );
+router.post(
+  '/export/email',
+  authenticate,
+  authorize('admin'),
+  validate(schemas.supplyExportEmail),
+  supplyController.exportEmail
+);
 router.post('/', authenticate, authorize('admin'), validate(schemas.createSupply), supplyController.create);
 router.put('/:id', authenticate, authorize('admin'), validate(schemas.updateSupply), supplyController.update);
 router.delete('/:id', authenticate, authorize('admin'), supplyController.remove);

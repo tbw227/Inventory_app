@@ -5,6 +5,7 @@ import { isAbortError } from '../utils/isAbortError'
 export function useDashboardData(initialDays = 30) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [heavyLoading, setHeavyLoading] = useState(false)
   const [err, setErr] = useState(null)
   const [chartDays, setChartDays] = useState(initialDays)
 
@@ -12,28 +13,37 @@ export function useDashboardData(initialDays = 30) {
   dataRef.current = data
 
   useEffect(() => {
-    const silentRefresh = dataRef.current !== null
-    if (!silentRefresh) setLoading(true)
+    const initialLoad = dataRef.current == null
+    if (initialLoad) setLoading(true)
+    setHeavyLoading(true)
 
     const controller = new AbortController()
     ;(async () => {
       try {
-        const res = await api.get('/dashboard', {
-          params: { days: chartDays },
+        const summary = await api.get('/dashboard', {
+          params: { days: chartDays, include_heavy: false },
           signal: controller.signal,
         })
-        setData(res.data)
+        setData(summary.data)
+        setErr(null)
+
+        const heavy = await api.get('/dashboard', {
+          params: { days: chartDays, include_heavy: true },
+          signal: controller.signal,
+        })
+        setData(heavy.data)
         setErr(null)
       } catch (e) {
         if (isAbortError(e)) return
         setErr(e?.response?.data?.error || 'Failed to load dashboard')
       } finally {
-        if (!silentRefresh) setLoading(false)
+        if (initialLoad) setLoading(false)
+        setHeavyLoading(false)
       }
     })()
 
     return () => controller.abort()
   }, [chartDays])
 
-  return { data, loading, err, chartDays, setChartDays }
+  return { data, loading, heavyLoading, err, chartDays, setChartDays }
 }

@@ -16,7 +16,7 @@ When the user navigates away or dependencies change, abort in-flight HTTP calls 
 - Pass `{ signal: controller.signal }` to axios (`api.get(url, { signal })`).
 - Return `() => controller.abort()` from the effect.
 
-See [`frontend/src/context/AuthContext.jsx`](../frontend/src/context/AuthContext.jsx) (session bootstrap) and [`frontend/src/pages/Dashboard.jsx`](../frontend/src/pages/Dashboard.jsx) (dashboard + calendar).
+See [`frontend/src/context/AuthContext.jsx`](../frontend/src/context/AuthContext.jsx) (session bootstrap) and [`frontend/src/pages/Dashboard.new.jsx`](../frontend/src/pages/Dashboard.new.jsx) (dashboard + calendar). The `.new.jsx` suffix is transitional; a rename back to `Dashboard.jsx` is tracked in `AUDIT.md §8.2`.
 
 ### Treat aborts as non-errors
 
@@ -38,7 +38,7 @@ useEffect(() => {
 }, [chartDays])
 ```
 
-This matches how [`Dashboard.jsx`](../frontend/src/pages/Dashboard.jsx) avoids a refetch loop while staying correct for silent range changes.
+This matches how [`Dashboard.new.jsx`](../frontend/src/pages/Dashboard.new.jsx) avoids a refetch loop while staying correct for silent range changes.
 
 ## Code splitting
 

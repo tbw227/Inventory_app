@@ -278,10 +278,11 @@ async function getInventoryAnalytics(companyId, role, userId) {
 
 async function getDashboardData(companyId, role, userId, query = {}) {
   const days = Math.min(Math.max(parseInt(query.days, 10) || 30, 7), 90);
+  const includeHeavy = String(query.include_heavy ?? 'true') !== 'false';
 
   const cid = String(companyId);
   const uid = String(userId);
-  const cacheKey = `${cid}:${role}:${uid}:${days}`;
+  const cacheKey = `${cid}:${role}:${uid}:${days}:${includeHeavy ? 'full' : 'summary'}`;
   const cached = dashboardCache.get(cacheKey);
   if (cached) return cached;
 
@@ -302,7 +303,7 @@ async function getDashboardData(companyId, role, userId, query = {}) {
     lowInventoryRows,
     recentReportJobs,
     analytics,
-    inventory_analytics,
+    inventoryAnalytics,
   ] = await Promise.all([
     prisma.job.count({
       where: {
@@ -342,8 +343,8 @@ async function getDashboardData(companyId, role, userId, query = {}) {
         assignedUser: { select: { name: true } },
       },
     }),
-    getRevenueAnalytics(companyId, role, userId, days),
-    getInventoryAnalytics(companyId, role, userId),
+    includeHeavy ? getRevenueAnalytics(companyId, role, userId, days) : Promise.resolve(undefined),
+    includeHeavy ? getInventoryAnalytics(companyId, role, userId) : Promise.resolve(undefined),
   ]);
 
   const lowInventory = lowInventoryRows.map((r) => ({
@@ -367,9 +368,11 @@ async function getDashboardData(companyId, role, userId, query = {}) {
     pendingToday,
     lowInventory,
     recentReports,
-    analytics,
-    inventory_analytics,
   };
+  if (includeHeavy) {
+    payload.analytics = analytics;
+    payload.inventory_analytics = inventoryAnalytics;
+  }
   dashboardCache.set(cacheKey, payload);
   return payload;
 }

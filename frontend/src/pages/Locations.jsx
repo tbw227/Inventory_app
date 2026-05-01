@@ -124,7 +124,7 @@ function StationInventoryReadOnly({ items }) {
 }
 
 export default function Locations() {
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [locations, setLocations] = useState([])
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
@@ -142,6 +142,7 @@ export default function Locations() {
 
   /** Inventory rows collected while creating a new location (required on create). */
   const [createInventoryRows, setCreateInventoryRows] = useState(() => [emptyDraftRow()])
+  const canCreateLocation = isAdmin || user?.role === 'technician'
 
   const fetchLocations = useCallback(async () => {
     setLoading(true)
@@ -332,7 +333,7 @@ export default function Locations() {
             placements across the site.
           </p>
         </div>
-        {isAdmin && (
+        {canCreateLocation && (
           <button
             type="button"
             onClick={showForm ? closeForm : openCreate}
@@ -343,7 +344,7 @@ export default function Locations() {
         )}
       </div>
 
-      {showForm && isAdmin && (
+      {showForm && canCreateLocation && (
         <form
           onSubmit={handleSubmit}
           className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-4 sm:p-5 mb-6 space-y-4 shadow-sm"

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { unwrapList } from '../utils/unwrapList'
 import { useAuth } from '../context/AuthContext'
+import { getJobLocations } from '../utils/jobLocations'
 
 const EMPTY_QUICKBOOKS = {
   customer_id: '',
@@ -45,10 +46,11 @@ function clientHasQuickbooksSummary(c) {
 }
 
 export default function Clients() {
-  const { isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [clients, setClients] = useState([])
+  const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -59,21 +61,44 @@ export default function Clients() {
   const [saving, setSaving] = useState(false)
 
   const [supplyInput, setSupplyInput] = useState({ name: '', quantity: '' })
+  const canCreateClient = isAdmin || user?.role === 'technician'
 
   const fetchClients = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await api.get('/clients')
-      setClients(unwrapList(res.data))
+      const [clientsRes, jobsRes] = await Promise.all([
+        api.get('/clients'),
+        api.get('/jobs'),
+      ])
+      setClients(unwrapList(clientsRes.data))
+      setJobs(unwrapList(jobsRes.data))
       setError(null)
     } catch (err) {
-      setError(err?.response?.data?.error || 'Failed to load clients')
+      setError(err?.response?.data?.error || 'Failed to load clients and jobs')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { fetchClients() }, [fetchClients])
+
+  const jobsByClient = useMemo(() => {
+    const grouped = new Map()
+    for (const job of jobs) {
+      const rawClientId = typeof job.client_id === 'object' ? job.client_id?._id : job.client_id
+      if (!rawClientId) continue
+      const key = String(rawClientId)
+      if (!grouped.has(key)) grouped.set(key, [])
+      grouped.get(key).push(job)
+    }
+    return grouped
+  }, [jobs])
+
+  function jobStatusClass(status) {
+    if (status === 'in-progress') return 'bg-blue-100 text-blue-700'
+    if (status === 'completed') return 'bg-emerald-100 text-emerald-700'
+    return 'bg-amber-100 text-amber-700'
+  }
 
   useEffect(() => {
     const cid = location.state?.editClientId
@@ -175,7 +200,7 @@ export default function Clients() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900">Clients</h1>
-        {!showForm && isAdmin && (
+        {!showForm && canCreateClient && (
           <button
             onClick={openCreate}
             className="text-sm bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors"
@@ -398,17 +423,19 @@ export default function Clients() {
               key={c._id}
               className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:border-teal-300/60 transition-colors"
             >
-              <Link
-                to={`/clients/${c._id}`}
-                className="group block p-4 hover:bg-slate-50/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset"
-              >
+              <div className="group block p-4 hover:bg-slate-50/80">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900 group-hover:text-teal-700">{c.name}</p>
                     <p className="text-sm text-gray-500">{c.location}</p>
                     {c.contact_info && <p className="text-sm text-gray-400">{c.contact_info}</p>}
-                    <p className="text-xs text-teal-600 font-medium mt-2">View details, stations & inventory →</p>
                   </div>
+                  <Link
+                    to={`/clients/${c._id}`}
+                    className="shrink-0 text-xs text-teal-600 font-medium hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded"
+                  >
+                    Open client
+                  </Link>
                 </div>
                 <div className="mt-3 border-t border-gray-100 pt-3">
                   <p className="text-xs font-medium text-gray-500 uppercase mb-2">QuickBooks</p>
@@ -453,7 +480,62 @@ export default function Clients() {
                     </div>
                   </div>
                 )}
-              </Link>
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-gray-500 uppercase">Active Jobs</p>
+                    <span className="text-xs text-gray-500">
+                      {(jobsByClient.get(String(c._id)) || []).length}
+                    </span>
+                  </div>
+                  {(jobsByClient.get(String(c._id)) || []).length === 0 ? (
+                    <p className="text-xs text-gray-400 mt-2">No active jobs for this client.</p>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {(jobsByClient.get(String(c._id)) || []).map((job) => {
+                        const stations = getJobLocations(job)
+                        return (
+                          <div key={job._id} className="rounded-md border border-gray-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">
+                                  {job.description || 'No description'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {job.assigned_user_id?.name ? `Assigned to ${job.assigned_user_id.name}` : 'Unassigned'}
+                                  {job.scheduled_date ? ` · ${new Date(job.scheduled_date).toLocaleDateString()}` : ''}
+                                </p>
+                              </div>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${jobStatusClass(job.status)}`}>
+                                {job.status}
+                              </span>
+                            </div>
+                            <div className="mt-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                                Locations / stations
+                              </p>
+                              {stations.length === 0 ? (
+                                <p className="text-xs text-gray-400 mt-1">No stations linked.</p>
+                              ) : (
+                                <ul className="mt-1 space-y-0.5">
+                                  {stations.map((loc) => (
+                                    <li key={loc._id || loc.name} className="text-xs text-gray-700">
+                                      {loc.name}
+                                      {loc.location_code ? <span className="text-gray-500"> · {loc.location_code}</span> : null}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            <Link to={`/jobs/${job._id}`} className="mt-2 inline-flex text-xs text-blue-600 hover:underline">
+                              Open job
+                            </Link>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
               {isAdmin && (
                 <div className="flex items-center justify-end gap-3 px-4 py-2 border-t border-gray-100 bg-gray-50/80">
                   <button

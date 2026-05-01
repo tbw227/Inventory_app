@@ -9,14 +9,14 @@ export function useBillingSettings({ searchParams, setSearchParams, refreshUser 
   useEffect(() => {
     const b = searchParams.get('billing')
     if (b === 'success') {
-      setBillingMsg('Subscription updated. Syncing your account…')
+      setBillingMsg('Plan updated. Refreshing your account…')
       refreshUser().finally(() => {
-        setBillingMsg('Subscription is up to date.')
+        setBillingMsg('Billing is up to date.')
         searchParams.delete('billing')
         setSearchParams(searchParams, { replace: true })
       })
     } else if (b === 'cancel') {
-      setBillingMsg('Checkout was cancelled.')
+      setBillingMsg('Plan change was canceled.')
       searchParams.delete('billing')
       setSearchParams(searchParams, { replace: true })
     }
@@ -29,9 +29,9 @@ export function useBillingSettings({ searchParams, setSearchParams, refreshUser 
     try {
       const res = await api.post('/companies/billing/checkout-session', { plan })
       if (res.data?.url) window.location.href = res.data.url
-      else setBillingErr('No checkout URL returned')
+      else setBillingErr('Could not open plan checkout. Please try again.')
     } catch (e) {
-      setBillingErr(e?.response?.data?.error || e?.message || 'Could not start checkout')
+      setBillingErr(e?.response?.data?.error || e?.message || 'Could not start plan checkout')
     } finally {
       setBillingLoading(false)
     }
@@ -44,7 +44,7 @@ export function useBillingSettings({ searchParams, setSearchParams, refreshUser 
     try {
       const res = await api.post('/companies/billing/portal-session')
       if (res.data?.url) window.location.href = res.data.url
-      else setBillingErr('No billing portal URL returned')
+      else setBillingErr('Could not open billing page. Please try again.')
     } catch (e) {
       setBillingErr(e?.response?.data?.error || e?.message || 'Could not open billing portal')
     } finally {

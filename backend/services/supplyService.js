@@ -310,9 +310,24 @@ async function getInventoryOverview(companyId, { includePricing = false } = {}) 
   };
 }
 
+async function getSuppliesForExport(companyId, itemIds, { includePricing = false } = {}) {
+  const where = {
+    companyId: String(companyId),
+  };
+  if (Array.isArray(itemIds) && itemIds.length > 0) {
+    where.id = { in: itemIds.map((id) => String(id)) };
+  }
+  const rows = await prisma.supply.findMany({
+    where,
+    orderBy: [{ catalogGroup: 'asc' }, { name: 'asc' }],
+  });
+  return rows.map((s) => formatSupply(s, { includePricing }));
+}
+
 module.exports = {
   listSupplies,
   getInventoryOverview,
+  getSuppliesForExport,
   createSupply,
   bulkCreateSupplies,
   updateSupply,

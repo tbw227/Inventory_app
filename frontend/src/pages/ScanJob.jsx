@@ -1,83 +1,123 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BrowserMultiFormatReader } from '@zxing/browser'
+import { QrReader } from 'react-qr-reader'
+import toast from 'react-hot-toast'
+import FullScreenModal from '../components/tech/FullScreenModal'
+import { ROUTES } from '../config/routes'
 
 export default function ScanJob() {
   const navigate = useNavigate()
-  const videoRef = useRef(null)
+  const [open, setOpen] = useState(true)
+  const [scanBusy, setScanBusy] = useState(false)
+  const [pendingJobId, setPendingJobId] = useState(null)
   const [error, setError] = useState(null)
-  const [scanning, setScanning] = useState(true)
 
-  useEffect(() => {
-    const codeReader = new BrowserMultiFormatReader()
-    let cancelled = false
-    const controlsRef = { current: null }
+  const title = useMemo(() => 'Scan Job QR Code', [])
 
-    const startScan = async () => {
-      try {
-        const devices = await codeReader.listVideoInputDevices()
-        const video = videoRef.current
-        if (!video || cancelled) return
-        controlsRef.current = await codeReader.decodeFromVideoDevice(
-          devices.length ? devices[0].deviceId : undefined,
-          video,
-          (result, err) => {
-            if (cancelled) return
-            if (err) return
-            if (result && result.getText()) {
-              setScanning(false)
-              controlsRef.current?.stop()
-              let jobId = result.getText().trim()
-              if (jobId.startsWith('job_')) jobId = jobId.slice(4)
-              if (/^[0-9a-fA-F]{24}$/.test(jobId)) {
-                navigate(`/jobs/${jobId}`)
-              } else {
-                setError('Invalid job code. Scan a job QR code.')
-              }
-            }
-          }
-        )
-        if (cancelled) {
-          controlsRef.current?.stop()
-          controlsRef.current = null
-        }
-      } catch (e) {
-        if (!cancelled) setError(e?.message || 'Camera access failed')
-      }
-    }
+  const parseJobId = useCallback((text) => {
+    const raw = String(text || '').trim()
+    if (!raw) return null
 
-    startScan()
-    return () => {
-      cancelled = true
-      controlsRef.current?.stop()
-      controlsRef.current = null
-    }
-  }, [navigate])
+    const maybe = raw.startsWith('job_') ? raw.slice(4) : raw
+
+    // UUID (Prisma/Supabase jobs)
+    const uuidLike = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(maybe)
+    if (uuidLike) return maybe
+
+    // Legacy 24-hex ids (if any old QR exists)
+    const hex24 = /^[0-9a-fA-F]{24}$/.test(maybe)
+    if (hex24) return maybe
+
+    return null
+  }, [])
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">Scan Job QR Code</h2>
-      <p className="text-sm text-gray-500 mb-4">Point your camera at the job QR code on the cabinet or tag.</p>
-      {error && (
-        <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-          {error}
+    <FullScreenModal
+      open={open}
+      title={title}
+      onClose={() => {
+        setOpen(false)
+        navigate(ROUTES.JOBS)
+      }}
+    >
+      <div className="p-4 space-y-3">
+        <div className="relative w-full overflow-hidden rounded-xl bg-black">
+          {scanBusy ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white">
+              <div className="px-4 text-center">
+                <div className="text-sm font-semibold">Opening job…</div>
+                {pendingJobId ? (
+                  <div className="mt-1 text-xs text-slate-300 break-all">
+                    {pendingJobId}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <QrReader
+            constraints={{ facingMode: 'environment' }}
+            scanDelay={250}
+            onResult={(result, err) => {
+              if (scanBusy) return
+              if (err) return
+              if (!result?.text) return
+
+              const jobId = parseJobId(result.text)
+              if (!jobId) {
+                setError('Invalid job QR code. Try scanning the job label again.')
+                return
+              }
+
+              setError(null)
+              setPendingJobId(jobId)
+              setScanBusy(true)
+
+              toast.success('Job scanned')
+              // Let the overlay render briefly for a smoother "native" feel.
+              window.setTimeout(() => {
+                setOpen(false)
+                navigate(`/jobs/${jobId}`)
+              }, 350)
+            }}
+            containerStyle={{ width: '100%' }}
+            videoContainerStyle={{ width: '100%' }}
+            videoStyle={{ width: '100%', height: '70vh', objectFit: 'cover' }}
+          />
         </div>
-      )}
-      <div className="relative bg-black rounded-lg overflow-hidden" style={{ minHeight: 300 }}>
-        <video
-          ref={videoRef}
-          id="video"
-          className="w-full"
-          style={{ minHeight: 300, objectFit: 'cover' }}
-          muted
-          playsInline
-        />
-        {!scanning && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-            Opening job...
+
+        {!scanBusy ? (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-slate-200">
+            Hold steady on the QR code until it auto-opens.
+          </div>
+        ) : null}
+
+        {error && (
+          <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-3 text-sm text-red-200">
+            {error}
           </div>
         )}
+
+        <div className="text-xs text-slate-300">
+          Point your camera at the job label QR code on the cabinet or equipment.
+        </div>
+
+        <div className="sticky bottom-0 pt-3">
+          <button
+            type="button"
+            onClick={() => {
+              setError(null)
+              setPendingJobId(null)
+              setScanBusy(false)
+              setOpen(false)
+              navigate(ROUTES.JOBS)
+            }}
+            className="w-full h-12 rounded-xl bg-slate-800/90 hover:bg-slate-800 text-slate-100 font-semibold"
+          >
+            Back to Jobs
+          </button>
+        </div>
       </div>
-    </div>
+    </FullScreenModal>
   )
 }

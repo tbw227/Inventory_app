@@ -1,6 +1,4 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
-import { ROUTES } from '../../config/routes'
 import Avatar from '../ui/Avatar'
 import WeatherWidget from './WeatherWidget'
 
@@ -12,23 +10,44 @@ export default function DashboardHero({
   displayName,
   isAdmin,
   heroAvatarSrc,
-  onJump,
 }) {
   return (
-    <section className={`rounded-2xl bg-gradient-to-br px-6 py-6 shadow-lg ${accent.hero}`}>
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 flex-1 items-center gap-5 sm:gap-6">
-          <Avatar name={user?.name} size="xl" square src={heroAvatarSrc} alt="" className="ml-1 sm:ml-2" />
-          <div className="min-w-0 space-y-1.5 sm:space-y-2">
-            <p id="dashboard-greeting" className={`${accent.greeting} text-base font-medium sm:text-lg`}>
+    <section
+      className={`rounded-2xl bg-gradient-to-br px-4 py-4 shadow-lg sm:px-5 sm:py-5 md:px-6 md:py-6 ${accent.hero}`}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-5">
+        {/*
+          @container: cqi in clamp() tracks this block’s width (sidebar + main width + weather)
+        */}
+        <div
+          className="@container flex min-w-0 flex-1 flex-col gap-3 @[20rem]:flex-row @[20rem]:items-center @[20rem]:gap-3 @[28rem]:gap-4 @[40rem]:gap-5"
+        >
+          <Avatar
+            name={user?.name}
+            size="xl"
+            square
+            src={heroAvatarSrc}
+            alt=""
+            className="shrink-0 self-start @[20rem]:self-center ml-0 @[20rem]:ml-0.5 md:ml-1.5"
+          />
+          <div className="min-w-0 max-w-full flex-1 space-y-1.5 @[32rem]:space-y-2">
+            <p
+              id="dashboard-greeting"
+              className={`${accent.greeting} font-medium leading-snug [font-size:clamp(0.75rem,0.1rem+2.2cqi,1.125rem)]`}
+            >
               {greeting}, {firstName}
             </p>
-            <h1 className="text-3xl font-bold text-white tracking-tight sm:text-4xl" aria-describedby="dashboard-greeting">
+            <h1
+              className="max-w-full break-words font-bold leading-[1.1] text-white tracking-tight [font-size:clamp(1.1rem,0.2rem+4.3cqi,2.5rem)] [overflow-wrap:anywhere]"
+              aria-describedby="dashboard-greeting"
+            >
               {displayName}
             </h1>
-            <p className="text-sm text-white/75">FireTrack operations dashboard</p>
+            <p className="text-white/75 leading-snug [font-size:clamp(0.65rem,0.08rem+1.1cqi,0.875rem)]">
+              Your work dashboard
+            </p>
             <span
-              className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold mt-0.5 ${
+              className={`mt-0.5 inline-flex max-w-full min-w-0 items-center break-words rounded-full px-2.5 py-0.5 font-semibold [font-size:clamp(0.6rem,0.05rem+0.85cqi,0.8125rem)] @[22rem]:px-3 @[22rem]:py-1 ${
                 isAdmin ? accent.adminBadge : accent.techBadge
               }`}
             >
@@ -36,54 +55,9 @@ export default function DashboardHero({
             </span>
           </div>
         </div>
-        <div className="w-full lg:w-auto lg:min-w-[16rem]">
-          <WeatherWidget />
+        <div className="w-full min-w-0 lg:max-w-[min(100%,20rem)] lg:shrink-0 lg:self-start">
+          <WeatherWidget variant="hero" />
         </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Link
-          to={ROUTES.JOBS}
-          className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors ${accent.primaryBtn}`}
-        >
-          View Jobs
-        </Link>
-        <Link
-          to={ROUTES.SUPPLIES}
-          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-white transition-colors ${accent.linkOutline}`}
-        >
-          Manage Inventory
-        </Link>
-        <Link
-          to={ROUTES.SETTINGS}
-          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-white transition-colors ${accent.linkOutline}`}
-        >
-          Settings
-        </Link>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onJump('today')}
-          className="text-xs font-medium text-white/90 px-2 py-1 rounded-md border border-white/20 hover:bg-white/10"
-        >
-          Today
-        </button>
-        <button
-          type="button"
-          onClick={() => onJump('schedule')}
-          className="text-xs font-medium text-white/90 px-2 py-1 rounded-md border border-white/20 hover:bg-white/10"
-        >
-          Schedule
-        </button>
-        <button
-          type="button"
-          onClick={() => onJump('analytics')}
-          className="text-xs font-medium text-white/90 px-2 py-1 rounded-md border border-white/20 hover:bg-white/10"
-        >
-          Analytics
-        </button>
       </div>
     </section>
   )
