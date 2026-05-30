@@ -13,6 +13,8 @@ import {
   YAxis,
 } from 'recharts'
 import { useChartTheme } from '../dashboard/useChartTheme'
+import { formatSupplyCatalogLines, shopQuantityOnHand } from '../../utils/supplyDisplay'
+import { computeShopHealthCounts } from '../../utils/inventoryStats'
 
 function feUnitsForClient(c) {
   return (c.stations || []).reduce((sum, st) => {
@@ -53,7 +55,7 @@ function effectiveListUnitPrice(s) {
 }
 
 function lineOnHandValue(s) {
-  const q = Number(s.quantity_on_hand) || 0
+  const q = shopQuantityOnHand(s)
   const p = effectiveListUnitPrice(s)
   if (p == null) return 0
   return q * p
@@ -89,7 +91,44 @@ const CATEGORY_LAYOUTS = [
   { id: 'bars', label: 'Bar chart' },
 ]
 
-function CategoryCardsSection({ groups, layoutId, t }) {
+/** Stable category → chart color (same order as shopByCategory cards). */
+function buildCategoryColorMap(groups) {
+  const map = new Map()
+  ;(groups || []).forEach((g, i) => {
+    map.set(g.category, CATEGORY_BAR_COLORS[i % CATEGORY_BAR_COLORS.length])
+  })
+  return map
+}
+
+function categoryColor(map, category) {
+  const key = (category || 'General').trim() || 'General'
+  return map.get(key) || CATEGORY_BAR_COLORS[0]
+}
+
+function CategoryLegend({ groups, categoryColorMap }) {
+  if (!groups?.length) return null
+  return (
+    <ul className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3">
+      {groups.map((g) => {
+        const color = categoryColor(categoryColorMap, g.category)
+        return (
+          <li key={g.category} className="inline-flex items-center gap-1.5 text-[10px] text-gray-600 dark:text-gray-300">
+            <span
+              className="h-2.5 w-2.5 rounded-sm shrink-0"
+              style={{ backgroundColor: color }}
+              aria-hidden
+            />
+            <span className="truncate max-w-[12rem]" title={g.category}>
+              {g.category}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function CategoryCardsSection({ groups, layoutId, t, categoryColorMap }) {
   if (!groups.length) return null
 
   if (layoutId === 'bars') {
@@ -130,8 +169,8 @@ function CategoryCardsSection({ groups, layoutId, t }) {
               cursor={{ fill: t.dark ? 'rgba(148,163,184,0.06)' : 'rgba(15,23,42,0.03)' }}
             />
             <Bar dataKey="skus" radius={[0, 6, 6, 0]} maxBarSize={26}>
-              {data.map((_, i) => (
-                <Cell key={i} fill={CATEGORY_BAR_COLORS[i % CATEGORY_BAR_COLORS.length]} />
+              {data.map((entry) => (
+                <Cell key={entry.fullName} fill={categoryColor(categoryColorMap, entry.fullName)} />
               ))}
             </Bar>
           </BarChart>
@@ -149,8 +188,8 @@ function CategoryCardsSection({ groups, layoutId, t }) {
 
   return (
     <div className={gridClass}>
-      {groups.map((g, i) => {
-        const accent = CATEGORY_BAR_COLORS[i % CATEGORY_BAR_COLORS.length]
+      {groups.map((g) => {
+        const accent = categoryColor(categoryColorMap, g.category)
         const isCompact = layoutId === 'compact'
         const showLimit = isCompact ? 5 : 12
         const visible = g.items.slice(0, showLimit)
@@ -159,28 +198,36 @@ function CategoryCardsSection({ groups, layoutId, t }) {
         const textSize = isCompact ? 'text-[10px]' : 'text-xs'
 
         const renderItemRow = (s, { hoverReveal = false } = {}) => {
-          const q = Number(s.quantity_on_hand) || 0
-          const th = Number(s.reorder_threshold) || 0
-          const low = q <= th
+          const qoh = shopQuantityOnHand(s)
+          const low = qoh <= (Number(s.reorder_threshold) || 0)
+          const { titleLine, secondaryQty, specQty } = formatSupplyCatalogLines(s.name, s)
+          const showLow = specQty == null && low
           return (
             <li
               key={s._id}
               className={[
-                'px-3 py-1.5 flex items-start justify-between gap-2 bg-white/60 dark:bg-slate-900/30',
-                hoverReveal ? 'hidden group-hover:flex' : 'flex',
+                'px-3 py-2 bg-white/60 dark:bg-slate-900/30',
+                hoverReveal ? 'hidden group-hover:block' : 'block',
               ].join(' ')}
             >
-              <span className="text-gray-700 dark:text-gray-300 min-w-0 break-words" title={s.name}>
-                {isCompact ? truncateLabel(s.name, 36) : s.name}
-              </span>
-              <span
-                className={[
-                  'shrink-0 tabular-nums font-medium',
-                  low ? 'text-amber-600 dark:text-amber-400' : 'text-teal-700 dark:text-teal-400',
-                ].join(' ')}
+              <p
+                className="text-gray-700 dark:text-gray-300 break-words leading-snug"
+                title={s.name}
               >
-                {q}
-              </span>
+                {isCompact ? truncateLabel(titleLine, 40) : titleLine}
+              </p>
+              {secondaryQty != null && (
+                <p
+                  className={[
+                    'mt-0.5 tabular-nums font-semibold leading-none',
+                    showLow
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-gray-900 dark:text-white',
+                  ].join(' ')}
+                >
+                  {secondaryQty}
+                </p>
+              )}
             </li>
           )
         }
@@ -272,48 +319,13 @@ export default function InventoryOverviewCharts({ shop, clients }) {
   const [categoryLayout, setCategoryLayout] = useState('grid')
 
   const shopHealth = useMemo(() => {
-    let ok = 0
-    let low = 0
-    for (const s of shop || []) {
-      const q = Number(s.quantity_on_hand) || 0
-      const th = Number(s.reorder_threshold) || 0
-      if (q <= th) low += 1
-      else ok += 1
-    }
+    const { healthy: ok, atOrBelowReorder: low } = computeShopHealthCounts(shop)
     const rows = [
       { name: 'Healthy', value: ok, fill: COL_OK },
       { name: 'At / below reorder', value: low, fill: COL_LOW },
     ].filter((r) => r.value > 0)
     return { ok, low, pieRows: rows, hasData: ok + low > 0 }
   }, [shop])
-
-  const shopBars = useMemo(() => {
-    const rows = (shop || [])
-      .map((s) => {
-        const q = Number(s.quantity_on_hand) || 0
-        const th = Number(s.reorder_threshold) || 0
-        return {
-          name: truncateLabel(s.name, 18),
-          fullName: s.name,
-          quantity: q,
-          threshold: th,
-          low: q <= th,
-        }
-      })
-      .sort((a, b) => b.quantity - a.quantity)
-    return rows
-  }, [shop])
-
-  const shopVsSites = useMemo(() => {
-    const shopUnits = (shop || []).reduce((n, s) => n + (Number(s.quantity_on_hand) || 0), 0)
-    const siteUnits = (clients || []).reduce((n, c) => n + allSiteUnitsForClient(c), 0)
-    return [
-      { name: 'Shop / warehouse', units: shopUnits, fill: COL_SHOP },
-      { name: 'Client sites (stations)', units: siteUnits, fill: COL_SITES },
-    ]
-  }, [shop, clients])
-
-  const shopVsSitesTotal = shopVsSites[0].units + shopVsSites[1].units
 
   const shopByCategory = useMemo(() => {
     const m = new Map()
@@ -325,9 +337,9 @@ export default function InventoryOverviewCharts({ shop, clients }) {
     return [...m.entries()]
       .map(([category, items]) => {
         const sorted = [...items].sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        const unitsOnHand = sorted.reduce((n, s) => n + (Number(s.quantity_on_hand) || 0), 0)
+        const unitsOnHand = sorted.reduce((n, s) => n + shopQuantityOnHand(s), 0)
         const lowCount = sorted.filter(
-          (s) => (Number(s.quantity_on_hand) || 0) <= (Number(s.reorder_threshold) || 0)
+          (s) => shopQuantityOnHand(s) <= (Number(s.reorder_threshold) || 0)
         ).length
         const hasUnitPrices = categoryHasUnitPrices(sorted)
         const valueOnHand = sorted.reduce((n, s) => n + lineOnHandValue(s), 0)
@@ -343,6 +355,40 @@ export default function InventoryOverviewCharts({ shop, clients }) {
       })
       .sort((a, b) => b.skuCount - a.skuCount)
   }, [shop])
+
+  const categoryColorMap = useMemo(() => buildCategoryColorMap(shopByCategory), [shopByCategory])
+
+  const shopBars = useMemo(() => {
+    const rows = (shop || [])
+      .map((s) => {
+        const q = shopQuantityOnHand(s)
+        const th = Number(s.reorder_threshold) || 0
+        const category = (s.category || 'General').trim() || 'General'
+        const low = q <= th
+        return {
+          name: truncateLabel(s.name, 18),
+          fullName: s.name,
+          category,
+          quantity: q,
+          threshold: th,
+          low,
+          fill: categoryColor(categoryColorMap, category),
+        }
+      })
+      .sort((a, b) => b.quantity - a.quantity)
+    return rows
+  }, [shop, categoryColorMap])
+
+  const shopVsSites = useMemo(() => {
+    const shopUnits = (shop || []).reduce((n, s) => n + shopQuantityOnHand(s), 0)
+    const siteUnits = (clients || []).reduce((n, c) => n + allSiteUnitsForClient(c), 0)
+    return [
+      { name: 'Shop / warehouse', units: shopUnits, fill: COL_SHOP },
+      { name: 'Client sites (stations)', units: siteUnits, fill: COL_SITES },
+    ]
+  }, [shop, clients])
+
+  const shopVsSitesTotal = shopVsSites[0].units + shopVsSites[1].units
 
   const feByClient = useMemo(() => {
     return (clients || [])
@@ -419,7 +465,12 @@ export default function InventoryOverviewCharts({ shop, clients }) {
               ))}
             </div>
           </div>
-          <CategoryCardsSection groups={shopByCategory} layoutId={categoryLayout} t={t} />
+          <CategoryCardsSection
+            groups={shopByCategory}
+            layoutId={categoryLayout}
+            t={t}
+            categoryColorMap={categoryColorMap}
+          />
         </div>
       )}
 
@@ -527,23 +578,36 @@ export default function InventoryOverviewCharts({ shop, clients }) {
                   />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v, _k, props) => [
-                      `${Number(v).toLocaleString()} on hand (reorder at ${props.payload.threshold})`,
-                      'Qty',
-                    ]}
+                    formatter={(v, _k, props) => {
+                      const p = props?.payload
+                      const lowNote = p?.low ? ' · at/below reorder' : ''
+                      return [
+                        `${Number(v).toLocaleString()} on hand (reorder at ${p?.threshold})${lowNote}`,
+                        p?.category || 'Qty',
+                      ]
+                    }}
                     labelFormatter={(_, p) => p?.[0]?.payload?.fullName || ''}
                     cursor={{ fill: t.dark ? 'rgba(148,163,184,0.06)' : 'rgba(15,23,42,0.03)' }}
                   />
                   <Bar dataKey="quantity" radius={[0, 4, 4, 0]} maxBarSize={22}>
-                    {shopBars.map((row, i) => (
-                      <Cell key={i} fill={row.low ? COL_LOW : COL_OK} />
+                    {shopBars.map((row) => (
+                      <Cell
+                        key={row.fullName}
+                        fill={row.fill}
+                        fillOpacity={row.low ? 0.55 : 1}
+                        stroke={row.low ? COL_LOW : undefined}
+                        strokeWidth={row.low ? 1 : 0}
+                      />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Green = above reorder level · Amber = at or below reorder.</p>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+            Bar color matches the category cards above. Faded bars with an amber edge are at or below reorder.
+          </p>
+          <CategoryLegend groups={shopByCategory} categoryColorMap={categoryColorMap} />
         </div>
 
         <div className="xl:col-span-2">

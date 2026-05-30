@@ -44,17 +44,24 @@ This matches how [`Dashboard.new.jsx`](../frontend/src/pages/Dashboard.new.jsx) 
 
 Route-level lazy loading lives in [`frontend/src/App.jsx`](../frontend/src/App.jsx): `React.lazy`, one `Suspense` boundary, heavy pages load on demand.
 
-## Backend: dashboard cache
+## Backend: tenant cache
 
-[`backend/services/dashboardService.js`](../backend/services/dashboardService.js) caches JSON responses for `GET /api/dashboard` in **process memory** for a short TTL.
+[`backend/services/tenantCacheService.js`](../backend/services/tenantCacheService.js) caches hot **GET** responses per company (dashboard, inventory overview, clients, jobs, locations). Writes call `bustCompanyCache(companyId)` so data stays fresh within one request after a save.
+
+| Env | Purpose |
+|-----|---------|
+| `TENANT_CACHE_TTL_MS` | List/overview TTL (default 30s). `0` disables those caches. |
+| `DASHBOARD_CACHE_TTL_MS` | Dashboard TTL (default 20s). `0` disables dashboard cache only. |
+| `INVENTORY_OVERVIEW_CACHE_TTL_MS` | Optional override for `/supplies/overview`. |
+| `REDIS_URL` | Optional — shared cache when running multiple API replicas. |
 
 | Scenario | Suggestion |
 |----------|------------|
-| Local dev, single API process | Default TTL (20s) is fine. |
-| Multiple replicas / Kubernetes | Set `DASHBOARD_CACHE_TTL_MS=0` in `.env`, or replace with Redis (not wired in this repo). |
-| Need fresh data after writes | TTL is a tradeoff; shorter TTL or `0` until you add invalidation. |
+| Local dev, single API process | Defaults are fine. |
+| Multiple replicas | Set `REDIS_URL` (e.g. Upstash). |
+| Debugging stale reads | Lower TTLs or set `TENANT_CACHE_TTL_MS=0`. |
 
-Configure via `DASHBOARD_CACHE_TTL_MS` (milliseconds). `0` disables caching entirely.
+`GET /health` includes a `cache` field (`memory` or `redis`).
 
 ## Auth tokens (current stack)
 

@@ -1,20 +1,27 @@
 const prisma = require('../lib/prisma');
 const { hashPassword, generateToken } = require('../utils/auth');
 
+const TEST_CREDENTIALS = {
+  adminEmail: process.env.TEST_ADMIN_EMAIL || 'admin@test.com',
+  adminPassword: process.env.TEST_ADMIN_PASSWORD || 'TestAdmin1!',
+  techEmail: process.env.TEST_TECH_EMAIL || 'tech@test.com',
+  techPassword: process.env.TEST_TECH_PASSWORD || 'TestTech1!',
+};
+
 async function createTestData() {
   const company = await prisma.company.create({
     data: { name: 'Test Company', subscriptionTier: 'basic', subscriptionStatus: 'active' },
   });
 
-  const adminHash = await hashPassword('TestAdmin1!');
-  const techHash = await hashPassword('TestTech1!');
+  const adminHash = await hashPassword(TEST_CREDENTIALS.adminPassword);
+  const techHash = await hashPassword(TEST_CREDENTIALS.techPassword);
 
   const admin = await prisma.user.create({
     data: {
       companyId: company.id,
       role: 'admin',
       name: 'Test Admin',
-      email: 'admin@test.com',
+      email: TEST_CREDENTIALS.adminEmail,
       passwordHash: adminHash,
     },
   });
@@ -24,7 +31,7 @@ async function createTestData() {
       companyId: company.id,
       role: 'technician',
       name: 'Test Tech',
-      email: 'tech@test.com',
+      email: TEST_CREDENTIALS.techEmail,
       passwordHash: techHash,
     },
   });
@@ -52,4 +59,4 @@ async function createTestData() {
   return { company, admin, tech, client, adminToken, techToken };
 }
 
-module.exports = { createTestData };
+module.exports = { createTestData, TEST_CREDENTIALS };

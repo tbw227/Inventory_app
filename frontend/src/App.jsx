@@ -7,6 +7,8 @@ import { Toaster } from 'react-hot-toast'
 
 const Layout = lazy(() => import('./components/layout/Layout'))
 const Login = lazy(() => import('./pages/Login'))
+const RedirectToMarketingSignup = lazy(() => import('./components/auth/RedirectToMarketingSignup'))
+const AuthHandoff = lazy(() => import('./pages/AuthHandoff'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const Dashboard = lazy(() => import('./pages/Dashboard.new'))
@@ -21,12 +23,14 @@ const PrintLabels = lazy(() => import('./pages/PrintLabels'))
 const Clients = lazy(() => import('./pages/Clients'))
 const ClientDetail = lazy(() => import('./pages/ClientDetail'))
 const Locations = lazy(() => import('./pages/Locations'))
+const StationDetail = lazy(() => import('./pages/StationDetail'))
+const ScanStation = lazy(() => import('./pages/ScanStation'))
+const Financials = lazy(() => import('./pages/Financials'))
 const Users = lazy(() => import('./pages/Users'))
 const UserDetail = lazy(() => import('./pages/UserDetail'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Settings = lazy(() => import('./pages/Settings'))
 const WeatherDemo = lazy(() => import('./pages/WeatherDemo'))
-
 function RouteFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
@@ -49,7 +53,9 @@ export default function App() {
       <Suspense fallback={<RouteFallback />}>
         <Toaster position="bottom-center" />
         <Routes>
+          <Route path={ROUTES.REGISTER} element={<RedirectToMarketingSignup />} />
           <Route path={ROUTES.LOGIN} element={<Login />} />
+          <Route path={ROUTES.AUTH_HANDOFF} element={<AuthHandoff />} />
           <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
           <Route path={ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
           <Route path={ROUTES.DASHBOARD} element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
@@ -64,11 +70,14 @@ export default function App() {
           <Route path={ROUTES.CLIENTS} element={<ProtectedLayout><Clients /></ProtectedLayout>} />
           <Route path="/clients/:id" element={<ProtectedLayout><ClientDetail /></ProtectedLayout>} />
           <Route path={ROUTES.LOCATIONS} element={<ProtectedLayout><Locations /></ProtectedLayout>} />
+          <Route path="/locations/:id" element={<ProtectedLayout><StationDetail /></ProtectedLayout>} />
+          <Route path={ROUTES.SCAN_STATION} element={<ProtectedLayout><ScanStation /></ProtectedLayout>} />
+          <Route path={ROUTES.FINANCIALS} element={<ProtectedLayout><Financials /></ProtectedLayout>} />
           <Route path={ROUTES.USERS} element={<ProtectedLayout requiredRole="admin"><Users /></ProtectedLayout>} />
           <Route path="/users/:id" element={<ProtectedLayout requiredRole="admin"><UserDetail /></ProtectedLayout>} />
           <Route path={ROUTES.PROFILE} element={<ProtectedLayout><Profile /></ProtectedLayout>} />
           <Route path={ROUTES.SETTINGS} element={<ProtectedLayout><Settings /></ProtectedLayout>} />
-          <Route path={ROUTES.WEATHER_DEMO} element={<WeatherDemo />} />
+          <Route path={ROUTES.WEATHER_DEMO} element={<ProtectedLayout><WeatherDemo /></ProtectedLayout>} />
           <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
           <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
         </Routes>

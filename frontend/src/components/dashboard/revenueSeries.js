@@ -4,7 +4,7 @@
 export function buildRevenueSeries(rows, dayCount) {
   const map = new Map()
   for (const d of rows || []) {
-    if (d._id) map.set(d._id, typeof d.total === 'number' ? d.total : 0)
+    if (d._id) map.set(d._id, Number(d.total) || 0)
   }
   const out = []
   const end = new Date()

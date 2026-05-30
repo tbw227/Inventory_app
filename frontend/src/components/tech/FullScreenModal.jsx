@@ -32,7 +32,18 @@ export default function FullScreenModal({ open, title, onClose, children }) {
         className="absolute left-0 right-0 top-0 bottom-0 bg-slate-950 text-white overflow-hidden"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => onClose?.()}
+              className="inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-lg hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
             <p className="text-sm font-semibold truncate">{title}</p>
           </div>
           <button

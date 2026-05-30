@@ -1,5 +1,15 @@
 const authService = require('../services/authService');
 
+exports.register = async (req, res, next) => {
+  try {
+    const { companyName, name, email, password } = req.validatedData;
+    const result = await authService.register(companyName, name, email, password);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.validatedData;

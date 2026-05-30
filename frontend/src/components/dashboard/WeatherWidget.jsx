@@ -1,3 +1,21 @@
+/**
+ * WeatherWidget — dual-mode weather display used on the dashboard.
+ *
+ * Variants:
+ *   "hero"    – compact inline card shown next to the DashboardHero greeting
+ *   "toolbar" – minimal one-line display in the top toolbar (deprecated layout)
+ *
+ * Data flow:
+ *   1. useTenantWeather()    → OpenWeather / Open-Meteo forecast for company locations
+ *   2. useWeatherCompany()   → The Weather Company v3 bundle (optional, lat/lon)
+ *   3. useExtraContent()     → Joke of the day + news headlines (GNews / RSS)
+ *   4. buildWeatherViewModel → Merges sources into a single view-model
+ *
+ * Theme: controlled by user preference (Settings → Weather theme). Five presets
+ * with condition-aware + day/night gradients. See features/weather/weatherTheme.js.
+ *
+ * Custom CSS animations (rain, snow, clouds, etc.) live in styles/index.css.
+ */
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useTenantWeather } from '../../hooks/useTenantWeather'

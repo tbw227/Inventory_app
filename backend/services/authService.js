@@ -135,6 +135,9 @@ function getProfile(user) {
     birthday: user.birthday || '',
     skills: Array.isArray(user.skills) ? user.skills : [],
     preferences: normalizePreferences(user.preferences),
+    vehicle_inventory: Array.isArray(user.vehicleInventory)
+      ? user.vehicleInventory
+      : user.vehicle_inventory || [],
     createdAt: user.createdAt,
   };
 }
@@ -155,6 +158,7 @@ async function me(userId) {
       birthday: true,
       skills: true,
       preferences: true,
+      vehicleInventory: true,
       createdAt: true,
     },
   });
@@ -175,4 +179,47 @@ async function me(userId) {
   return getProfile({ ...user, ...companyFieldsFromDoc(companyDoc) });
 }
 
-module.exports = { login, forgotPassword, resetPassword, getProfile, me };
+async function register(companyName, name, email, password) {
+  const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (existing) {
+    throw new AppError('An account with that email already exists', 409);
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    const company = await tx.company.create({
+      data: { name: companyName },
+    });
+
+    const user = await tx.user.create({
+      data: {
+        companyId: company.id,
+        role: 'admin',
+        name,
+        email: email.toLowerCase(),
+        passwordHash: await hashPassword(password),
+      },
+    });
+
+    return { company, user };
+  });
+
+  const token = generateToken({
+    userId: result.user.id,
+    companyId: result.company.id,
+    role: result.user.role,
+  });
+
+  const { passwordHash: _p, ...rest } = result.user;
+  return {
+    token,
+    user: getProfile({
+      ...rest,
+      company_name: result.company.name,
+      subscription_status: 'active',
+      subscription_tier: 'basic',
+      subscription_current_period_end: null,
+    }),
+  };
+}
+
+module.exports = { login, register, forgotPassword, resetPassword, getProfile, me };

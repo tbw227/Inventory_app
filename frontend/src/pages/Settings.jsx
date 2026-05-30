@@ -140,6 +140,7 @@ export default function Settings() {
     orgWeatherLoading,
     orgWeatherSaving,
     setOrgWeatherSaving,
+    reloadCompany,
   } = useOrgWeatherSettings(isAdmin)
 
   const {
@@ -196,6 +197,7 @@ export default function Settings() {
         contact_info: orgMeta.contact_info.trim(),
         weather_locations,
       })
+      await reloadCompany()
       setOrgWeatherMsg(
         weather_locations.length
           ? `Saved ${weather_locations.length} office location(s). The dashboard will show a city picker.`

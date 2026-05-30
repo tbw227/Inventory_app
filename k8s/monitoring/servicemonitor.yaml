@@ -1,0 +1,22 @@
+# Requires Prometheus Operator (kube-prometheus-stack Helm chart).
+# Helm release name must match label `release` below (default: prometheus).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: inventory-api
+  namespace: inventory-app
+  labels:
+    app.kubernetes.io/name: inventory-api
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inventory-api
+  namespaceSelector:
+    matchNames:
+      - inventory-app
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

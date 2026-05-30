@@ -11,6 +11,7 @@ import { getJobLocations } from '../utils/jobLocations'
 import toast from 'react-hot-toast'
 import CameraCaptureModal from '../components/tech/CameraCaptureModal'
 import SupplyQrScanModal from '../components/tech/SupplyQrScanModal'
+import InvoicePanel from '../components/job/InvoicePanel'
 
 export default function JobDetail() {
   const { id } = useParams()
@@ -399,6 +400,15 @@ export default function JobDetail() {
           <p className="text-sm text-gray-500">
             Completed {new Date(job.completed_at).toLocaleString()}
           </p>
+        )}
+
+        {job.status === 'completed' &&
+          (user?.role === 'admin' || String(job.assigned_user_id?._id) === String(user?._id)) && (
+          <div className="border-t border-gray-200 pt-6 space-y-3">
+            <h3 className="text-lg font-semibold text-gray-900">Invoice</h3>
+            <p className="text-xs text-gray-500">Generate a detailed invoice from supplies used, then send it to the client.</p>
+            <InvoicePanel jobId={job._id} />
+          </div>
         )}
 
         {job.status !== 'completed' && canComplete && (

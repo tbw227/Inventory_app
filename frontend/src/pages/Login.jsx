@@ -1,7 +1,16 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import api, {
+  getApiDeploymentInfo,
+  getApiErrorMessage,
+  isApiMisconfiguredInProduction,
+} from '../services/api'
 import { ROUTES } from '../config/routes'
+import { safeRedirect } from '../utils/safeRedirect'
+import { MARKETING_SITE_URL, MARKETING_SIGNUP_URL } from '../config/marketing'
+import BrandLogo from '../components/ui/BrandLogo'
+import { PRODUCT_NAME } from '../config/brand'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -11,9 +20,10 @@ export default function Login() {
   const { login, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const apiInfo = getApiDeploymentInfo()
 
   if (user) {
-    return <Navigate to={location.state?.from?.pathname || ROUTES.JOBS} replace />
+    return <Navigate to={safeRedirect(location.state?.from?.pathname, ROUTES.DASHBOARD)} replace />
   }
 
   async function handleSubmit(e) {
@@ -22,14 +32,9 @@ export default function Login() {
     setSubmitting(true)
     try {
       await login(email, password)
-      navigate(location.state?.from?.pathname || ROUTES.JOBS, { replace: true })
+      navigate(safeRedirect(location.state?.from?.pathname, ROUTES.DASHBOARD), { replace: true })
     } catch (err) {
-      const data = err?.response?.data
-      let message = data?.error || 'Login failed. Please check your credentials.'
-      if (import.meta.env.DEV && data?.details) {
-        message = `${message} — ${data.details}`
-      }
-      setError(message)
+      setError(getApiErrorMessage(err, 'Login failed. Please check your credentials.'))
     } finally {
       setSubmitting(false)
     }
@@ -38,20 +43,37 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center">
-            <img
-              src="/images/logo-code3.png"
-              alt="Code 3 First Aid"
-              className="h-20 w-20 rounded-2xl object-cover shadow-sm"
-              loading="eager"
-              decoding="async"
-            />
-          </div>
-          <h1 className="mt-4 text-2xl font-bold text-blue-600 tracking-tight">Code 3 First Aid</h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to manage your jobs</p>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <BrandLogo size="lg" showName nameClassName="text-blue-600" />
+          <p className="mt-3 text-sm text-gray-500">Sign in to {PRODUCT_NAME}</p>
         </div>
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+          {import.meta.env.PROD && (
+            <div
+              className={`rounded-md border px-3 py-2 text-xs ${
+                apiInfo.misconfigured
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-600'
+              }`}
+            >
+              <p className="font-medium text-slate-800">API connection</p>
+              <p className="mt-1 break-all">
+                Requests go to: <code className="rounded bg-white px-1">{apiInfo.baseURL}/auth/login</code>
+              </p>
+              {apiInfo.configuredOrigin && (
+                <p className="mt-1 break-all">
+                  VITE_API_URL: <code className="rounded bg-white px-1">{apiInfo.configuredOrigin}</code>
+                  {apiInfo.sameOriginProxy ? ' (proxied on Vercel)' : ' (direct cross-origin)'}
+                </p>
+              )}
+              {apiInfo.misconfigured && (
+                <p className="mt-1">
+                  Set <code className="rounded bg-white px-1">VITE_API_URL</code> to your{' '}
+                  <strong>Express API host</strong> (not this Vercel URL, not Supabase), then redeploy.
+                </p>
+              )}
+            </div>
+          )}
           {import.meta.env.DEV && (
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
               <p className="font-medium text-slate-700 dark:text-slate-200">Local dev</p>
@@ -114,6 +136,19 @@ export default function Login() {
           >
             {submitting ? 'Signing in...' : 'Sign in'}
           </button>
+          <p className="text-center text-sm text-gray-500">
+            Don&apos;t have an account?{' '}
+            <a href={MARKETING_SIGNUP_URL} className="text-blue-600 hover:text-blue-800 font-medium">
+              Create your company
+            </a>
+          </p>
+          {MARKETING_SITE_URL && (
+            <p className="text-center text-xs text-gray-500 pt-1">
+              <a href={MARKETING_SITE_URL} className="text-blue-600 hover:underline font-medium">
+                ← Back to website
+              </a>
+            </p>
+          )}
         </form>
       </div>
     </div>

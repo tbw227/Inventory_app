@@ -2,8 +2,11 @@
   "name": "firetrack-backend",
   "version": "1.0.0",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node server.js",
+    "start": "npx prisma migrate deploy && node server.js",
     "dev": "node server.js",
     "seed": "node seed.js",
     "test": "jest --forceExit",
@@ -20,22 +23,28 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^8.2.1",
+    "express": "^5.0.0",
+    "express-rate-limit": "^8.5.1",
     "helmet": "^8.1.0",
     "joi": "^18.0.0",
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.0.0",
     "node-cache": "^5.1.2",
-    "nodemailer": "^6.9.4",
+    "nodemailer": "^8.0.4",
     "pdfkit": "^0.13.0",
     "prisma": "^6.19.0",
+    "prom-client": "^15.1.3",
+    "redis": "^4.7.1",
     "sharp": "^0.34.5",
     "stripe": "^22.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.19.0"
+  },
+  "overrides": {
+    "inflight": "npm:empty-npm-package@*",
+    "glob": "^10.0.0"
   },
   "devDependencies": {
     "jest": "^30.2.0",

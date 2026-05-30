@@ -1,3 +1,16 @@
+/**
+ * AuthContext — global authentication state for the SPA.
+ *
+ * Provides: { user, loading, login, logout, refreshUser, isAdmin }
+ *
+ * On mount, if a JWT token exists in localStorage, it calls GET /auth/me
+ * to revalidate the session. If the token is expired or invalid, the user
+ * is logged out and redirected to /login (handled by the axios interceptor
+ * in services/api.js).
+ *
+ * Token storage: localStorage (see AUDIT.md §2 for planned migration to
+ * httpOnly cookies + refresh flow).
+ */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import { isAbortError } from '../utils/isAbortError'

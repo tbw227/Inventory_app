@@ -1,3 +1,14 @@
+/**
+ * DashboardKpis — key performance indicator tiles displayed below the hero.
+ *
+ * Two rows:
+ *   Row 1: Revenue (admin only), All jobs, Jobs done, Time-range selector
+ *   Row 2: Today's jobs (blue), Done today (green), Left today (orange)
+ *
+ * All numeric values come from the dashboard API payload (useDashboardData).
+ * The time-range selector (7 / 30 / 90 days) controls the analytics window
+ * for both this component and DashboardCharts.
+ */
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../../config/routes'
@@ -53,7 +64,7 @@ export default function DashboardKpis({
         </Link>
       </div>
 
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-3'}`}>
         {isAdmin && (
           <div className={`${CARD} p-5`}>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -73,25 +84,27 @@ export default function DashboardKpis({
           <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">{jobsCompleted}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Total completed</p>
         </div>
-        <div className={`${CARD} p-5 flex flex-col justify-center`}>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Time range</p>
-          <div className="flex flex-wrap gap-2">
-            {[7, 30, 90].map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setChartDays(d)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  chartDays === d
-                    ? accent.chartSelected
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {d} days
-              </button>
-            ))}
+        {!isAdmin && (
+          <div className={`${CARD} p-5 flex flex-col justify-center`}>
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Time range</p>
+            <div className="flex flex-wrap gap-2">
+              {[7, 30, 90].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setChartDays(d)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    chartDays === d
+                      ? accent.chartSelected
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {d} days
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </>
   )

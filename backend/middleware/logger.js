@@ -5,10 +5,12 @@ const stream = {
   write: (message) => logger.info(message.trim()),
 };
 
+const { shouldSkipMetrics } = require('./prometheus');
+
 const morganMiddleware = morgan(
   ':remote-addr :method :url :status :response-time ms',
   {
-    skip: () => process.env.NODE_ENV === 'test',
+    skip: (req) => process.env.NODE_ENV === 'test' || shouldSkipMetrics(req),
     stream,
   }
 );

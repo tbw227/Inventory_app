@@ -1,3 +1,21 @@
+/**
+ * Dashboard — main landing page after login for both admin and technician roles.
+ *
+ * Layout (top → bottom):
+ *   1. Toolbar — inventory alerts bell + settings gear
+ *   2. Hero — avatar, greeting, name, role badge; admins also get revenue charts beside profile
+ *   3. KPIs — today's jobs, done/left counters, revenue (admin), time-range selector
+ *   4. Schedule — calendar (left) + recent completed jobs sidebar (right)
+ *   5. Analytics — inventory summary charts + revenue breakdown (collapsible)
+ *
+ * Data is fetched in two stages via useDashboardData:
+ *   - "summary" (fast): today counts, low inventory, recent reports
+ *   - "heavy" (deferred): analytics, revenue breakdowns, inventory analytics
+ *
+ * The user-selectable accent theme (Settings → Dashboard accent color) controls
+ * gradient colors, badge styles, and link highlights throughout this page.
+ * See: src/config/dashboardAccents.js and docs/CSS_MAP.md
+ */
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLocation } from 'react-router-dom'
@@ -7,15 +25,47 @@ import { getDashboardAccent } from '../config/dashboardAccents'
 import { mediaUrl } from '../utils/mediaUrl'
 import { useDashboardData } from '../hooks/useDashboardData'
 import { useCalendarData } from '../hooks/useCalendarData'
+import { useTenantWeather } from '../hooks/useTenantWeather'
+import { buildWeatherViewModel } from '../features/weather/buildWeatherViewModel'
 import DashboardHero from '../components/dashboard/DashboardHero'
+import AdminHeroRevenuePanel from '../components/dashboard/AdminHeroRevenuePanel'
 import DashboardKpis from '../components/dashboard/DashboardKpis'
 import DashboardCharts from '../components/dashboard/DashboardCharts'
+
+function ToolbarWeatherClock() {
+  const { locations } = useTenantWeather()
+  const [time, setTime] = useState(() => new Date())
+
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const active = locations.find((l) => l.data) || locations[0]
+  const vm = active?.data ? buildWeatherViewModel(active.data) : null
+  if (!vm) return null
+
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm tabular-nums text-slate-500 dark:text-slate-400">
+      {vm.temp != null && (
+        <span className="font-semibold text-slate-700 dark:text-slate-200">{vm.temp}°</span>
+      )}
+      <span className="text-slate-300 dark:text-slate-600">·</span>
+      <span>{time.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span>
+    </span>
+  )
+}
 import JobCalendar from '../components/dashboard/JobCalendar'
 import InventoryAnalyticsCharts from '../components/dashboard/InventoryAnalyticsCharts'
 import Avatar from '../components/ui/Avatar'
 
+/** Fallback avatar shown for admin users who haven't uploaded a photo. */
 const DEFAULT_ADMIN_AVATAR = '/images/default-admin-avatar.jpg'
+
+/** Reusable Tailwind class string for standard card surfaces (light + dark). */
 const CARD = 'rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm'
+
+/** Skeleton placeholder used while dashboard data is loading. */
 const SKELETON_PULSE = 'rounded-xl bg-slate-200/90 dark:bg-slate-700/80 animate-pulse'
 
 function getFirstName(name) {
@@ -106,6 +156,7 @@ export default function Dashboard() {
     total_jobs = 0,
     jobs_completed = 0,
     days: analyticsDays = chartDays,
+    demo: revenueDemo = false,
   } = analytics
 
   const scrollToRef = (ref) => {
@@ -119,6 +170,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-[calc(100vh-5rem)] flex flex-col space-y-6">
       <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <ToolbarWeatherClock />
         <div ref={inventoryAlertsRef} className="relative">
           <button
             type="button"
@@ -197,15 +249,39 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      <DashboardHero
-        accent={accent}
-        user={user}
-        greeting={greeting}
-        firstName={firstName}
-        displayName={displayName}
-        isAdmin={isAdmin}
-        heroAvatarSrc={heroAvatarSrc}
-      />
+      <div
+        className={
+          isAdmin
+            ? 'grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start'
+            : 'flex flex-col gap-3 sm:flex-row sm:items-stretch'
+        }
+      >
+        <div className={isAdmin ? 'min-w-0 lg:sticky lg:top-20' : 'min-w-0'}>
+          <DashboardHero
+            accent={accent}
+            user={user}
+            greeting={greeting}
+            firstName={firstName}
+            displayName={displayName}
+            isAdmin={isAdmin}
+            heroAvatarSrc={heroAvatarSrc}
+            showSendInvoice={!isAdmin}
+          />
+        </div>
+        {isAdmin && (
+          <AdminHeroRevenuePanel
+            accent={accent}
+            revenueOverTime={revenue_over_time}
+            revenueByTechnician={revenue_by_technician}
+            revenueByJob={revenue_by_job}
+            analyticsDays={analyticsDays}
+            chartDays={chartDays}
+            setChartDays={setChartDays}
+            loading={heavyLoading && !hasHeavyPayload}
+            demo={revenueDemo}
+          />
+        )}
+      </div>
 
       {failedFirstLoad && (
         <div className="text-sm text-red-600 bg-red-50 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-md px-4 py-3" role="alert">
@@ -319,16 +395,18 @@ export default function Dashboard() {
                 <div className="h-56 w-full rounded bg-slate-200 dark:bg-slate-700" />
               </div>
             )}
-            <DashboardCharts
-              isAdmin={isAdmin}
-              revenueOverTime={revenue_over_time}
-              analyticsDays={analyticsDays}
-              revenueByTechnician={revenue_by_technician}
-              revenueByJob={revenue_by_job}
-              loading={heavyLoading && !hasHeavyPayload}
-              open={chartsOpen}
-              onToggle={() => setChartsOpen((open) => !open)}
-            />
+            {!isAdmin && (
+              <DashboardCharts
+                isAdmin={false}
+                revenueOverTime={revenue_over_time}
+                analyticsDays={analyticsDays}
+                revenueByTechnician={revenue_by_technician}
+                revenueByJob={revenue_by_job}
+                loading={heavyLoading && !hasHeavyPayload}
+                open={chartsOpen}
+                onToggle={() => setChartsOpen((open) => !open)}
+              />
+            )}
           </section>
         </>
       )}

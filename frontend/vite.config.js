@@ -3,7 +3,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import viteCompression from 'vite-plugin-compression'
+import basicSsl from '@vitejs/plugin-basic-ssl'
+import { compression } from 'vite-plugin-compression2'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -82,18 +83,20 @@ export default defineConfig(({ mode }) => {
     },
   }
 
+  const devHttps = env.VITE_DEV_HTTPS === 'true'
+
   return {
     plugins: [
       react(),
-      // Generate precompressed assets; supported hosts can serve these directly.
-      viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 1536, verbose: false }),
-      viteCompression({ algorithm: 'brotliCompress', ext: '.br', threshold: 1536, verbose: false }),
+      ...(devHttps ? [basicSsl()] : []),
+      compression({ algorithms: ['gzip', 'brotliCompress'], threshold: 1536 }),
       // Make the app installable + enable a service worker for offline capability.
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
           clientsClaim: true,
           skipWaiting: true,
+          navigateFallbackDenylist: [/^\/api\//],
         },
       }),
     ],
@@ -104,8 +107,12 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    experimental: {
+      bundledDev: false,
+    },
     server: {
       port: Number(env.VITE_DEV_PORT || 5174),
+      host: true,
       proxy: { '/api': apiProxy },
     },
     preview: {

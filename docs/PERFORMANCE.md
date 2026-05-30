@@ -25,7 +25,14 @@ If any target is missed after a release, open an issue and link it to the commit
 ## What is in place
 
 ### Backend
-- In-process cache for `GET /api/v1/dashboard`, TTL via `DASHBOARD_CACHE_TTL_MS` (`backend/services/dashboardService.js`). Abstracted through `backend/lib/cache.js` (Map today, Redis-ready interface).
+- **Tenant cache** (`backend/services/tenantCacheService.js`) for hot authenticated reads:
+  - `GET /api/v1/dashboard`
+  - `GET /api/v1/supplies/overview` (3 parallel DB queries → often 0 after warm cache)
+  - `GET /api/v1/clients`, `/locations`, `/jobs`, client calendar events
+- TTL: `TENANT_CACHE_TTL_MS` (default 30s), `DASHBOARD_CACHE_TTL_MS` (default 20s), optional `INVENTORY_OVERVIEW_CACHE_TTL_MS`.
+- **Invalidation:** any write to supplies, clients, locations, or jobs calls `bustCompanyCache(companyId)` so the next GET is fresh.
+- **Redis (optional):** set `REDIS_URL` so all API replicas share one cache; otherwise in-memory per Node process.
+- Weather forecasts still use `backend/lib/cache.js` + `WEATHER_CACHE_TTL_SEC`.
 - Prisma indexes on every foreign key plus composite `[companyId, assignedUserId, scheduledDate]` on `Job` (`backend/prisma/schema.prisma`).
 - Read-heavy reporting queries use `prisma.$queryRaw` with parameterised tagged templates to avoid ORM overhead, not to bypass safety.
 
@@ -98,5 +105,6 @@ Largest 10 chunks should be stable release-over-release. Any chunk breaching 250
 - **Apr 2026** — introduced `vite-plugin-compression` and manual vendor chunking (`vite.config.js`). See README "Frontend Performance Notes".
 - **Apr 2026** — added composite `Job` index `[companyId, assignedUserId, scheduledDate]`.
 - **Apr 2026** — introduced `backend/lib/cache.js` as a pre-Redis abstraction.
+- **May 2026** — tenant cache service with optional `REDIS_URL`; inventory overview + list endpoints cached with write-through invalidation.
 
 When you land a change that moves an SLO metric by > 10 %, add a dated entry here with the commit SHA and the measured delta.

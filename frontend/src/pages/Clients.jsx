@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { safeRedirect } from '../utils/safeRedirect'
 import api from '../services/api'
 import { unwrapList } from '../utils/unwrapList'
 import { useAuth } from '../context/AuthContext'
 import { getJobLocations } from '../utils/jobLocations'
+import { clientHasPricingDiscount, formatClientDiscountLabel } from '../utils/clientPricing'
 
 const EMPTY_QUICKBOOKS = {
   customer_id: '',
@@ -27,6 +29,8 @@ const EMPTY_FORM = {
   service_expiry_date: '',
   required_supplies: [],
   quickbooks: { ...EMPTY_QUICKBOOKS },
+  pricing_discount_percent: '',
+  pricing_discount_notes: '',
 }
 
 function normalizeQuickbooks(q) {
@@ -106,7 +110,7 @@ export default function Clients() {
     const c = clients.find((x) => String(x._id) === String(cid))
     if (c) {
       openEdit(c)
-      navigate(location.pathname, { replace: true, state: {} })
+      navigate(safeRedirect(location.pathname, '/clients'), { replace: true, state: {} })
     }
   }, [clients, location.state, location.pathname, navigate])
 
@@ -128,6 +132,9 @@ export default function Clients() {
       service_expiry_date: toDateInput(client.service_expiry_date),
       required_supplies: client.required_supplies || [],
       quickbooks: normalizeQuickbooks(client.quickbooks),
+      pricing_discount_percent:
+        client.pricing_discount_percent != null ? String(client.pricing_discount_percent) : '',
+      pricing_discount_notes: client.pricing_discount_notes || '',
     })
     setFormError(null)
     setSupplyInput({ name: '', quantity: '' })
@@ -167,6 +174,11 @@ export default function Clients() {
         ...formData,
         service_start_date: formData.service_start_date?.trim() || null,
         service_expiry_date: formData.service_expiry_date?.trim() || null,
+        pricing_discount_percent:
+          formData.pricing_discount_percent === '' || formData.pricing_discount_percent == null
+            ? null
+            : Number(formData.pricing_discount_percent),
+        pricing_discount_notes: formData.pricing_discount_notes?.trim() || null,
       }
       if (editing) {
         await api.put(`/clients/${editing}`, payload)
@@ -262,6 +274,38 @@ export default function Clients() {
                 onChange={e => setFormData(d => ({ ...d, service_expiry_date: e.target.value }))}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+
+          <div className="border border-violet-200 rounded-lg p-4 bg-violet-50/50">
+            <h4 className="text-sm font-semibold text-gray-900 mb-1">Pricing discount</h4>
+            <p className="text-xs text-gray-500 mb-3">
+              Optional percent off catalog list prices for this client (shop unit price and min-order price). Leave blank
+              for standard pricing.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={formData.pricing_discount_percent}
+                  onChange={(e) => setFormData((d) => ({ ...d, pricing_discount_percent: e.target.value }))}
+                  placeholder="e.g. 10"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <input
+                  value={formData.pricing_discount_notes}
+                  onChange={(e) => setFormData((d) => ({ ...d, pricing_discount_notes: e.target.value }))}
+                  placeholder="e.g. Annual contract, approved by manager"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -427,6 +471,11 @@ export default function Clients() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-gray-900 group-hover:text-teal-700">{c.name}</p>
+                    {clientHasPricingDiscount(c) && (
+                      <span className="inline-block mt-1 text-xs bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full font-medium">
+                        {formatClientDiscountLabel(c.pricing_discount_percent)}
+                      </span>
+                    )}
                     <p className="text-sm text-gray-500">{c.location}</p>
                     {c.contact_info && <p className="text-sm text-gray-400">{c.contact_info}</p>}
                   </div>

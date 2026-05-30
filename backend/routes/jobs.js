@@ -10,6 +10,7 @@ router.get('/:id', authenticate, jobController.get);
 router.post('/', authenticate, authorize('admin'), validate(schemas.createJob), jobController.create);
 router.put('/:id', authenticate, authorize('admin'), validate(schemas.updateJob), jobController.update);
 router.post('/:id/complete', authenticate, validate(schemas.completeJob), jobController.complete);
+router.post('/:id/invoice', authenticate, authorize('admin', 'technician'), jobController.invoice);
 router.post('/:id/inventory', authenticate, authorize('admin', 'technician'), validate(schemas.addJobInventoryUsed), jobController.addInventoryUsed);
 
 module.exports = router;

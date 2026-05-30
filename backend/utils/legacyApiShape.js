@@ -27,6 +27,8 @@ function formatClient(c) {
     service_expiry_date: c.serviceExpiryDate,
     quickbooks: c.quickbooks ?? undefined,
     required_supplies: Array.isArray(c.requiredSupplies) ? c.requiredSupplies : c.requiredSupplies || [],
+    pricing_discount_percent: c.pricingDiscountPercent ?? null,
+    pricing_discount_notes: c.pricingDiscountNotes ?? null,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
   };
@@ -112,6 +114,9 @@ function formatUserRecord(u, extra = {}) {
     birthday: u.birthday ?? '',
     skills: Array.isArray(u.skills) ? u.skills : [],
     preferences: u.preferences && typeof u.preferences === 'object' ? u.preferences : {},
+    vehicle_inventory: Array.isArray(u.vehicleInventory)
+      ? u.vehicleInventory
+      : u.vehicle_inventory || [],
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
     ...extra,

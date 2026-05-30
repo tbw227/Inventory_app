@@ -1,0 +1,3 @@
+# Nixpacks — Node 20 for Express + Prisma (Railway, no Docker)
+[phases.setup]
+nixPkgs = ["nodejs_20"]

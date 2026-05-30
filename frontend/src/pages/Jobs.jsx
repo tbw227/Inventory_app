@@ -11,6 +11,7 @@ const STATUSES = [
   { value: '', label: 'All' },
   { value: 'pending', label: 'Pending' },
   { value: 'in-progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
 ]
 
 function defaultDatetimeLocal() {
@@ -37,7 +38,7 @@ export default function Jobs() {
 
   useEffect(() => {
     const s = searchParams.get('status')
-    if (s === 'pending' || s === 'in-progress') {
+    if (s === 'pending' || s === 'in-progress' || s === 'completed') {
       setStatusFilter(s)
     }
   }, [searchParams])

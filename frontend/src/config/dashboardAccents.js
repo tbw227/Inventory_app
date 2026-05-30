@@ -1,5 +1,18 @@
 /**
- * Dashboard hero + primary actions keyed to user preferences.dashboard_accent
+ * Dashboard accent theme definitions — user-selectable via Settings page.
+ *
+ * Each accent provides Tailwind class strings for:
+ *   hero          – gradient background on the hero card (avatar + name)
+ *   greeting      – text color for "Good morning, …"
+ *   primaryBtn    – primary button background
+ *   adminBadge    – admin role badge styling
+ *   techBadge     – technician role badge styling
+ *   chartSelected – active state for time-range picker buttons
+ *   pageLink*     – accent-colored link text across dashboard sections
+ *   spinner       – loading spinner border color
+ *
+ * Stored in user.preferences.dashboard_accent (Prisma JSON field).
+ * See docs/CSS_MAP.md §3 for the full color table.
  */
 
 export const DASHBOARD_ACCENT_IDS = ['teal', 'ocean', 'violet', 'ember', 'forest', 'slate']

@@ -1,23 +1,19 @@
+/**
+ * Dashboard service — assembles all data for the GET /api/v1/dashboard endpoint.
+ *
+ * Two-phase response (controlled by ?include_heavy query param):
+ *   Summary (fast):  today job counts, low inventory alerts, recent completed jobs
+ *   Heavy (deferred): revenue analytics, product performance rollups, inventory
+ *                     analytics (warehouse stock health + technician field inventory)
+ *
+ * Results are cached via tenantCacheService (DASHBOARD_CACHE_TTL_MS).
+ * Keys are per-company + role + user + day-range. Use REDIS_URL when running
+ * multiple API replicas; set DASHBOARD_CACHE_TTL_MS=0 to disable.
+ */
 const { Prisma, JobStatus } = require('@prisma/client');
 const prisma = require('../lib/prisma');
-const { createInMemoryCache } = require('../lib/cache');
-
-/**
- * In-process dashboard response cache. Set DASHBOARD_CACHE_TTL_MS=0 to disable.
- * Not shared across multiple Node processes — use 0 (or Redis) when horizontally scaling the API.
- */
-function parseDashboardCacheTtlMs() {
-  const raw = process.env.DASHBOARD_CACHE_TTL_MS;
-  if (raw === undefined || raw === '') return 20_000;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) return 20_000;
-  return n;
-}
-
-const dashboardCache = createInMemoryCache({
-  ttlMs: parseDashboardCacheTtlMs(),
-  maxKeys: 200,
-});
+const { getDashboardCached } = require('./tenantCacheService');
+const { isDemoRevenueEnabled, buildDemoRevenueAnalytics } = require('../lib/demoRevenue');
 
 function paymentWhereForRole(companyId, role, userId, since) {
   const base = {
@@ -110,9 +106,15 @@ async function getRevenueAnalytics(companyId, role, userId, days) {
     prisma.job.count({ where: { ...jobWhere, status: JobStatus.completed } }),
   ]);
 
-  return {
+  const total_revenue = Number(totalAgg._sum.amount ?? 0);
+  const periodHasRevenue =
+    total_revenue >= 1 ||
+    (Array.isArray(revenue_over_time) &&
+      revenue_over_time.some((row) => Number(row.total) > 0));
+
+  const result = {
     days,
-    total_revenue: totalAgg._sum.amount || 0,
+    total_revenue,
     completed_payments: totalAgg._count._all,
     revenue_over_time,
     revenue_by_technician,
@@ -120,6 +122,12 @@ async function getRevenueAnalytics(companyId, role, userId, days) {
     total_jobs,
     jobs_completed,
   };
+
+  if (isDemoRevenueEnabled() && !periodHasRevenue) {
+    return buildDemoRevenueAnalytics(days, role);
+  }
+
+  return result;
 }
 
 function parsePlannedRows(plannedSupplies) {
@@ -131,55 +139,38 @@ function parsePlannedRows(plannedSupplies) {
 }
 
 async function getTechnicianFieldInventory(companyId) {
-  const jobs = await prisma.job.findMany({
-    where: {
-      companyId: String(companyId),
-      status: { in: [JobStatus.pending, JobStatus.in_progress] },
-    },
-    include: { assignedUser: { select: { id: true, name: true, role: true } } },
-  });
+  const [techs, jobs] = await Promise.all([
+    prisma.user.findMany({
+      where: { companyId: String(companyId), role: 'technician' },
+      select: { id: true, name: true, vehicleInventory: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.job.findMany({
+      where: {
+        companyId: String(companyId),
+        status: { in: [JobStatus.pending, JobStatus.in_progress] },
+      },
+      select: { assignedUserId: true },
+    }),
+  ]);
 
-  const aggMap = new Map();
   const activeJobsByUser = new Map();
-
   for (const job of jobs) {
-    const assignee = job.assignedUser;
-    if (!assignee || assignee.role !== 'technician') continue;
-
-    activeJobsByUser.set(String(assignee.id), (activeJobsByUser.get(String(assignee.id)) || 0) + 1);
-
-    for (const row of parsePlannedRows(job.plannedSupplies)) {
-      if (!row.name) continue;
-      const key = `${assignee.id}::${row.name}`;
-      const prev = aggMap.get(key) || { userId: assignee.id, userName: assignee.name, supplyName: row.name, qty: 0 };
-      prev.qty += row.quantity;
-      aggMap.set(key, prev);
-    }
+    if (!job.assignedUserId) continue;
+    const uid = String(job.assignedUserId);
+    activeJobsByUser.set(uid, (activeJobsByUser.get(uid) || 0) + 1);
   }
-
-  const byUser = new Map();
-  for (const v of aggMap.values()) {
-    const uid = String(v.userId);
-    if (!byUser.has(uid)) {
-      byUser.set(uid, { name: v.userName, items: [] });
-    }
-    byUser.get(uid).items.push({ name: v.supplyName, quantity: v.qty });
-  }
-
-  for (const [, row] of byUser) {
-    row.items.sort((a, b) => (Number(b.quantity) || 0) - (Number(a.quantity) || 0));
-  }
-
-  const techs = await prisma.user.findMany({
-    where: { companyId: String(companyId), role: 'technician' },
-    select: { id: true, name: true },
-    orderBy: { name: 'asc' },
-  });
 
   return techs.map((t) => {
-    const row = byUser.get(String(t.id));
-    const items = row?.items || [];
-    const total_units = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+    const raw = Array.isArray(t.vehicleInventory) ? t.vehicleInventory : [];
+    const items = raw
+      .map((row) => ({
+        name: String(row.item_name || row.name || '').trim(),
+        quantity: Number(row.quantity) || 0,
+      }))
+      .filter((row) => row.name && row.quantity > 0)
+      .sort((a, b) => b.quantity - a.quantity);
+    const total_units = items.reduce((s, i) => s + i.quantity, 0);
     return {
       user_id: t.id,
       name: t.name,
@@ -282,10 +273,9 @@ async function getDashboardData(companyId, role, userId, query = {}) {
 
   const cid = String(companyId);
   const uid = String(userId);
-  const cacheKey = `${cid}:${role}:${uid}:${days}:${includeHeavy ? 'full' : 'summary'}`;
-  const cached = dashboardCache.get(cacheKey);
-  if (cached) return cached;
 
+  const demoRevenue = isDemoRevenueEnabled();
+  return getDashboardCached(cid, role, uid, days, includeHeavy, demoRevenue, async () => {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date(todayStart);
@@ -373,8 +363,8 @@ async function getDashboardData(companyId, role, userId, query = {}) {
     payload.analytics = analytics;
     payload.inventory_analytics = inventoryAnalytics;
   }
-  dashboardCache.set(cacheKey, payload);
   return payload;
+  });
 }
 
 module.exports = { getDashboardData, getRevenueAnalytics };

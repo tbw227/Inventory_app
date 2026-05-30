@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import api from '../services/api'
+import { useCallback, useEffect, useState } from 'react'
+import api, { getApiErrorMessage } from '../services/api'
 
 export function useOrgWeatherSettings(isAdmin) {
   const [orgMeta, setOrgMeta] = useState({ name: '', contact_info: '' })
@@ -9,15 +9,13 @@ export function useOrgWeatherSettings(isAdmin) {
   const [orgWeatherLoading, setOrgWeatherLoading] = useState(false)
   const [orgWeatherSaving, setOrgWeatherSaving] = useState(false)
 
-  useEffect(() => {
-    if (!isAdmin) return
-    let cancelled = false
+  const loadCompany = useCallback(() => {
+    if (!isAdmin) return Promise.resolve()
     setOrgWeatherLoading(true)
     setOrgWeatherErr(null)
-    api
+    return api
       .get('/companies')
       .then((res) => {
-        if (cancelled) return
         const c = res.data || {}
         setOrgMeta({
           name: c.name || '',
@@ -27,15 +25,24 @@ export function useOrgWeatherSettings(isAdmin) {
         setOrgWeatherLocs(wl.length ? wl.map((x) => ({ label: x.label || '', query: x.query || '' })) : [])
       })
       .catch((e) => {
-        if (!cancelled) setOrgWeatherErr(e?.response?.data?.error || e?.message || 'Could not load company settings')
+        setOrgWeatherErr(getApiErrorMessage(e, 'Could not load company settings'))
+        throw e
       })
       .finally(() => {
-        if (!cancelled) setOrgWeatherLoading(false)
+        setOrgWeatherLoading(false)
       })
+  }, [isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin) return undefined
+    let cancelled = false
+    loadCompany().catch(() => {
+      if (cancelled) return
+    })
     return () => {
       cancelled = true
     }
-  }, [isAdmin])
+  }, [isAdmin, loadCompany])
 
   return {
     orgMeta,
@@ -49,5 +56,6 @@ export function useOrgWeatherSettings(isAdmin) {
     orgWeatherLoading,
     orgWeatherSaving,
     setOrgWeatherSaving,
+    reloadCompany: loadCompany,
   }
 }

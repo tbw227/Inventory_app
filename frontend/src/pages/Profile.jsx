@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ProfileCard, { profileActionClass } from '../components/profile/ProfileCard'
+import VehicleInventoryEditor from '../components/inventory/VehicleInventoryEditor'
+import { useProfileRevenue } from '../hooks/useProfileRevenue'
 
 function parseSkillsInput(raw) {
   if (!raw || typeof raw !== 'string') return []
@@ -15,6 +17,14 @@ function parseSkillsInput(raw) {
 
 export default function Profile() {
   const { user, refreshUser } = useAuth()
+  const {
+    revenueDays,
+    setRevenueDays,
+    shopRevenue,
+    techRevenue,
+    revenueLoading,
+    revenueError,
+  } = useProfileRevenue()
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [saveOk, setSaveOk] = useState(false)
@@ -109,6 +119,11 @@ export default function Profile() {
             skills={user.skills}
             email={user.email}
             phone={user.phone || ''}
+            shopRevenue={shopRevenue}
+            techRevenue={techRevenue}
+            revenueDays={revenueDays}
+            onRevenueDaysChange={setRevenueDays}
+            revenueLoading={revenueLoading}
             socialExtra={
               <Link to="/settings" title="Settings" aria-label="Settings">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.65} viewBox="0 0 24 24" aria-hidden>
@@ -149,6 +164,11 @@ export default function Profile() {
           </div>
 
           <div className="mt-6 space-y-4">
+            {revenueError && (
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                {revenueError}
+              </div>
+            )}
             {saveError && (
               <div className="rounded-xl border border-red-200/80 bg-red-50/90 px-3 py-2.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
                 {saveError}
@@ -242,6 +262,16 @@ export default function Profile() {
           </div>
         </form>
       </div>
+
+      {user.role === 'technician' && (
+        <div className="mt-10">
+          <VehicleInventoryEditor
+            useMe
+            initialItems={user.vehicle_inventory}
+            onSaved={() => refreshUser()}
+          />
+        </div>
+      )}
     </div>
   )
 }

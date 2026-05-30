@@ -1,8 +1,25 @@
+/**
+ * Supply service — warehouse catalog CRUD + inventory overview aggregation.
+ *
+ * Covers two distinct inventory concepts:
+ *   1. Warehouse (shop) supplies — rows in the `supplies` table with
+ *      quantity_on_hand, reorder thresholds, catalog pricing tiers.
+ *   2. Client station inventory — JSON arrays on each `location` row,
+ *      aggregated by getInventoryOverview into a client → station → lines tree
+ *      with fire-extinguisher unit totals.
+ *
+ * Also handles CSV supply import (preview + commit) via supplyImportService.
+ */
 const { Prisma } = require('@prisma/client');
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/AppError');
 const prismaPaginate = require('../utils/prismaPaginate');
 const { formatSupply, formatLocation } = require('../utils/legacyApiShape');
+const { extractBracketSku } = require('../utils/supplySku');
+const {
+  bustCompanyCache,
+  getInventoryOverviewCached,
+} = require('./tenantCacheService');
 
 function toUnitPriceDecimal(raw) {
   if (raw === undefined) return undefined;
@@ -98,68 +115,123 @@ async function createSupply(companyId, data) {
   }
   applySupplyCatalogPricingFromBody(createData, data);
   const supply = await prisma.supply.create({ data: createData });
+  bustCompanyCache(companyId);
   return formatSupply(supply, { includePricing: true });
+}
+
+function buildImportRowPatch(it) {
+  const patch = {};
+  if (it.category !== undefined && it.category !== null && String(it.category).trim() !== '') {
+    patch.category = normalizeCategory(it.category);
+  }
+  if (it.quantity_on_hand !== undefined && it.quantity_on_hand !== null && it.quantity_on_hand !== '') {
+    patch.quantityOnHand = Math.max(0, Math.floor(Number(it.quantity_on_hand) || 0));
+  }
+  if (it.reorder_threshold !== undefined && it.reorder_threshold !== null && it.reorder_threshold !== '') {
+    patch.reorderThreshold = Math.max(0, Math.floor(Number(it.reorder_threshold) || 5));
+  }
+  if (it.unit_price !== undefined && it.unit_price !== null && it.unit_price !== '') {
+    try {
+      patch.unitPrice = toUnitPriceDecimal(it.unit_price);
+    } catch {
+      /* skip invalid unit_price on import */
+    }
+  }
+  const g = toOptionalTrimmedString(it.catalog_group, 120);
+  if (g !== undefined) patch.catalogGroup = g;
+  const qpu = toOptionalTrimmedString(it.qty_per_unit, 80);
+  if (qpu !== undefined) patch.qtyPerUnit = qpu;
+  if (it.case_qty !== undefined && it.case_qty !== null && it.case_qty !== '') {
+    const cq = Math.floor(Number(it.case_qty));
+    if (Number.isFinite(cq) && cq >= 0) patch.caseQty = cq;
+  }
+  if (it.min_order_qty !== undefined && it.min_order_qty !== null && it.min_order_qty !== '') {
+    const mq = Math.floor(Number(it.min_order_qty));
+    if (Number.isFinite(mq) && mq >= 0) patch.minOrderQty = mq;
+  }
+  try {
+    if (it.min_order_unit_price !== undefined && it.min_order_unit_price !== null && it.min_order_unit_price !== '') {
+      patch.minOrderUnitPrice = toUnitPriceDecimal(it.min_order_unit_price);
+    }
+    if (it.discount_r_qty !== undefined && it.discount_r_qty !== null && it.discount_r_qty !== '') {
+      const q = Math.floor(Number(it.discount_r_qty));
+      if (Number.isFinite(q) && q >= 0) patch.discountRQty = q;
+    }
+    if (it.discount_r_unit_price !== undefined && it.discount_r_unit_price !== null && it.discount_r_unit_price !== '') {
+      patch.discountRUnitPrice = toUnitPriceDecimal(it.discount_r_unit_price);
+    }
+    if (it.discount_n_qty !== undefined && it.discount_n_qty !== null && it.discount_n_qty !== '') {
+      const q = Math.floor(Number(it.discount_n_qty));
+      if (Number.isFinite(q) && q >= 0) patch.discountNQty = q;
+    }
+    if (it.discount_n_unit_price !== undefined && it.discount_n_unit_price !== null && it.discount_n_unit_price !== '') {
+      patch.discountNUnitPrice = toUnitPriceDecimal(it.discount_n_unit_price);
+    }
+  } catch {
+    /* skip invalid optional price fields on import */
+  }
+  return patch;
+}
+
+function buildImportCreateRow(companyId, it) {
+  let unitPrice = null;
+  if (it.unit_price !== undefined && it.unit_price !== null && it.unit_price !== '') {
+    unitPrice = toUnitPriceDecimal(it.unit_price);
+  }
+  const row = {
+    companyId: String(companyId),
+    category: normalizeCategory(it.category),
+    name: String(it.name ?? '').trim(),
+    quantityOnHand: Math.max(0, Math.floor(Number(it.quantity_on_hand) || 0)),
+    reorderThreshold: Math.max(0, Math.floor(Number(it.reorder_threshold) || 5)),
+    unitPrice,
+  };
+  return { ...row, ...buildImportRowPatch(it) };
 }
 
 async function bulkCreateSupplies(companyId, items) {
   const cid = String(companyId);
-  const rows = (items || [])
-    .map((it) => {
-      let unitPrice = null;
-      if (it.unit_price !== undefined && it.unit_price !== null && it.unit_price !== '') {
-        unitPrice = toUnitPriceDecimal(it.unit_price);
-      }
-      const row = {
-        companyId: cid,
-        category: normalizeCategory(it.category),
-        name: String(it.name ?? '').trim(),
-        quantityOnHand: Math.max(0, Math.floor(Number(it.quantity_on_hand) || 0)),
-        reorderThreshold: Math.max(0, Math.floor(Number(it.reorder_threshold) || 5)),
-        unitPrice,
-      };
-      const g = toOptionalTrimmedString(it.catalog_group, 120);
-      if (g !== undefined) row.catalogGroup = g;
-      const qpu = toOptionalTrimmedString(it.qty_per_unit, 80);
-      if (qpu !== undefined) row.qtyPerUnit = qpu;
-      if (it.case_qty !== undefined && it.case_qty !== null && it.case_qty !== '') {
-        const cq = Math.floor(Number(it.case_qty));
-        if (Number.isFinite(cq) && cq >= 0) row.caseQty = cq;
-      }
-      if (it.min_order_qty !== undefined && it.min_order_qty !== null && it.min_order_qty !== '') {
-        const mq = Math.floor(Number(it.min_order_qty));
-        if (Number.isFinite(mq) && mq >= 0) row.minOrderQty = mq;
-      }
-      try {
-        if (it.min_order_unit_price !== undefined && it.min_order_unit_price !== null && it.min_order_unit_price !== '') {
-          row.minOrderUnitPrice = toUnitPriceDecimal(it.min_order_unit_price);
-        }
-        if (it.discount_r_qty !== undefined && it.discount_r_qty !== null && it.discount_r_qty !== '') {
-          const q = Math.floor(Number(it.discount_r_qty));
-          if (Number.isFinite(q) && q >= 0) row.discountRQty = q;
-        }
-        if (it.discount_r_unit_price !== undefined && it.discount_r_unit_price !== null && it.discount_r_unit_price !== '') {
-          row.discountRUnitPrice = toUnitPriceDecimal(it.discount_r_unit_price);
-        }
-        if (it.discount_n_qty !== undefined && it.discount_n_qty !== null && it.discount_n_qty !== '') {
-          const q = Math.floor(Number(it.discount_n_qty));
-          if (Number.isFinite(q) && q >= 0) row.discountNQty = q;
-        }
-        if (it.discount_n_unit_price !== undefined && it.discount_n_unit_price !== null && it.discount_n_unit_price !== '') {
-          row.discountNUnitPrice = toUnitPriceDecimal(it.discount_n_unit_price);
-        }
-      } catch {
-        /* skip invalid optional price fields on import */
-      }
-      return row;
-    })
-    .filter((r) => r.name.length > 0);
+  const normalized = (items || [])
+    .map((it) => ({ ...it, name: String(it.name ?? '').trim() }))
+    .filter((it) => it.name.length > 0);
 
-  if (!rows.length) {
+  if (!normalized.length) {
     throw new AppError('No valid lines to import (each row needs a name)', 400);
   }
 
-  const result = await prisma.supply.createMany({ data: rows });
-  return { created: result.count };
+  const existing = await prisma.supply.findMany({
+    where: { companyId: cid },
+    select: { id: true, name: true },
+  });
+  const bySku = new Map();
+  for (const row of existing) {
+    const sku = extractBracketSku(row.name);
+    if (sku && !bySku.has(sku)) bySku.set(sku, row.id);
+  }
+
+  const toCreate = [];
+  let updated = 0;
+  for (const it of normalized) {
+    const sku = extractBracketSku(it.name);
+    const existingId = sku ? bySku.get(sku) : null;
+    const patch = buildImportRowPatch(it);
+    if (existingId) {
+      if (Object.keys(patch).length === 0) continue;
+      await prisma.supply.update({ where: { id: existingId }, data: patch });
+      updated += 1;
+      continue;
+    }
+    toCreate.push(buildImportCreateRow(cid, it));
+    if (sku) bySku.set(sku, '__pending__');
+  }
+
+  let created = 0;
+  if (toCreate.length) {
+    const result = await prisma.supply.createMany({ data: toCreate });
+    created = result.count;
+  }
+  bustCompanyCache(companyId);
+  return { created, updated };
 }
 
 async function updateSupply(companyId, supplyId, data) {
@@ -180,6 +252,7 @@ async function updateSupply(companyId, supplyId, data) {
     where: { id: String(supplyId) },
     data: patch,
   });
+  bustCompanyCache(companyId);
   return formatSupply(supply, { includePricing: true });
 }
 
@@ -190,6 +263,7 @@ async function deleteSupply(companyId, supplyId) {
   if (r.count === 0) {
     throw new AppError('Supply not found', 404);
   }
+  bustCompanyCache(companyId);
 }
 
 function resolveLocationClient(loc) {
@@ -206,11 +280,7 @@ function resolveLocationClient(loc) {
   return { id: raw, name: 'Unknown client' };
 }
 
-async function getInventoryOverview(companyId, { includePricing = false } = {}) {
-  if (companyId == null || companyId === '') {
-    throw new AppError('Company context missing', 400);
-  }
-
+async function loadInventoryOverview(companyId, { includePricing = false } = {}) {
   const [shopRows, clientDocs, locationDocs] = await Promise.all([
     prisma.supply.findMany({
       where: { companyId: String(companyId) },
@@ -298,16 +368,36 @@ async function getInventoryOverview(companyId, { includePricing = false } = {}) 
     }
   }
 
+  let shopHealthySkus = 0;
+  let shopLowStockSkus = 0;
+  for (const s of shop) {
+    const q = Number(s.quantity_on_hand) || 0;
+    const th = Number(s.reorder_threshold) || 0;
+    if (q <= th) shopLowStockSkus += 1;
+    else shopHealthySkus += 1;
+  }
+
   return {
     shop,
     clients,
     totals: {
       shop_skus: shop.length,
       shop_units: shop.reduce((n, s) => n + (Number(s.quantity_on_hand) || 0), 0),
+      shop_healthy_skus: shopHealthySkus,
+      shop_low_stock_skus: shopLowStockSkus,
       client_station_lines: totalClientLines,
       client_fire_extinguisher_units: totalFeUnits,
     },
   };
+}
+
+async function getInventoryOverview(companyId, { includePricing = false } = {}) {
+  if (companyId == null || companyId === '') {
+    throw new AppError('Company context missing', 400);
+  }
+  return getInventoryOverviewCached(companyId, includePricing, () =>
+    loadInventoryOverview(companyId, { includePricing })
+  );
 }
 
 async function getSuppliesForExport(companyId, itemIds, { includePricing = false } = {}) {

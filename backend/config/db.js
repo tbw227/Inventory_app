@@ -1,3 +1,11 @@
+/**
+ * Database connection manager — connects Prisma to PostgreSQL on startup.
+ *
+ * Validates DATABASE_URL is set, calls prisma.$connect(), and probes for
+ * the users table to warn if migrations haven't been applied yet.
+ *
+ * Exports connectDB (async) with a .disconnect() method for graceful shutdown.
+ */
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 

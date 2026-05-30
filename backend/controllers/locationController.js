@@ -36,6 +36,15 @@ exports.update = async (req, res, next) => {
   }
 };
 
+exports.getByCode = async (req, res, next) => {
+  try {
+    const location = await locationService.getLocationByCode(req.user.company_id, req.params.code);
+    res.json(location);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.remove = async (req, res, next) => {
   try {
     await locationService.deleteLocation(req.user.company_id, req.params.id);

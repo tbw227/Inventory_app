@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import Papa from 'papaparse'
-import api from '../services/api'
+import api, { getApiErrorMessage } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime } from '../utils/formatDate'
 import InventoryOverviewCharts from '../components/inventory/InventoryOverviewCharts'
+import { formatSupplyCatalogLines, parseSupplyDisplayName } from '../utils/supplyDisplay'
+import { computeShopHealthCounts } from '../utils/inventoryStats'
 
 function feUnits(items) {
   return (items || []).reduce((sum, row) => {
@@ -13,16 +15,26 @@ function feUnits(items) {
   }, 0)
 }
 
-/** Split `[SKU] description` from catalog-style names; otherwise show full string as description. */
-function parseSupplyDisplayName(name) {
-  const raw = String(name || '').trim()
-  const m = raw.match(/^\[([^\]]+)\]\s*(.*)$/)
-  if (m) {
-    const desc = m[2].trim()
-    return { itemNo: m[1].trim(), description: desc || '—' }
-  }
-  return { itemNo: '—', description: raw || '—' }
+const INVENTORY_SECTION = {
+  overview: 'inventory-overview',
+  shop: 'inventory-shop',
+  clients: 'inventory-clients',
 }
+
+function inventorySectionId(prefix, label) {
+  const slug = String(label || 'section')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return `inventory-${prefix}-${slug || 'other'}`
+}
+
+function scrollToInventorySection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const jumpPillClass =
+  'inline-flex items-center rounded-full border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:text-gray-200 transition-colors hover:border-teal-400 hover:bg-teal-50/90 hover:text-teal-800 dark:hover:border-teal-600 dark:hover:bg-teal-950/40 dark:hover:text-teal-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950'
 
 function ShopTableHeaderCell({ children, align = 'left', className = '', rowSpan, colSpan }) {
   const al = align === 'right' ? 'text-right' : 'text-left'
@@ -45,7 +57,8 @@ function fmtMoneyCell(n) {
 const IMPORT_FIELDS = [
   { key: 'name', label: 'Name', required: true },
   { key: 'category', label: 'Category' },
-  { key: 'quantity_on_hand', label: 'Quantity on hand' },
+  { key: 'quantity_on_hand', label: 'Shop on hand (QOH)' },
+  { key: 'case_qty', label: 'Case qty' },
   { key: 'reorder_threshold', label: 'Reorder at' },
   { key: 'unit_price', label: 'Unit price' },
 ]
@@ -68,6 +81,8 @@ function buildImportItems(rows, hasHeader, mapping) {
     if (cat) item.category = cat
     const q = cellAt(row, mapping.quantity_on_hand)
     if (q !== '') item.quantity_on_hand = Math.max(0, Math.floor(Number(q) || 0))
+    const cq = cellAt(row, mapping.case_qty)
+    if (cq !== '') item.case_qty = Math.max(0, Math.floor(Number(cq) || 0))
     const r = cellAt(row, mapping.reorder_threshold)
     if (r !== '') item.reorder_threshold = Math.max(0, Math.floor(Number(r) || 0))
     const p = cellAt(row, mapping.unit_price)
@@ -84,6 +99,7 @@ const defaultMapping = () => ({
   name: null,
   category: null,
   quantity_on_hand: null,
+  case_qty: null,
   reorder_threshold: null,
   unit_price: null,
 })
@@ -129,8 +145,8 @@ export default function Supplies() {
   const [emailErr, setEmailErr] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
 
-  const fetchOverview = useCallback(async () => {
-    setLoading(true)
+  const fetchOverview = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const res = await api.get('/supplies/overview')
       setShop(res.data.shop || [])
@@ -138,9 +154,9 @@ export default function Supplies() {
       setTotals(res.data.totals || null)
       setError(null)
     } catch (err) {
-      setError(err?.response?.data?.error || 'Failed to load inventory')
+      setError(getApiErrorMessage(err, 'Failed to load inventory'))
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
@@ -209,9 +225,23 @@ export default function Supplies() {
           }
           return null
         }
-        next.name = pick(['name', 'item', 'product', 'sku', 'description'])
+        next.name = pick(['name', 'item', 'product', 'description', 'item description'])
         next.category = pick(['category', 'type', 'class'])
-        next.quantity_on_hand = pick(['quantity', 'qty', 'quantity on hand', 'on hand', 'stock'])
+        next.quantity_on_hand = pick([
+          'shop qoh',
+          'shop qty',
+          'quantity on hand',
+          'on hand',
+          'on hands',
+          'on hands amount',
+          'qoh',
+          'count',
+          'count amount',
+          'quantity',
+          'qty',
+          'stock',
+        ])
+        next.case_qty = pick(['case qty', 'case quantity', 'case amount', 'case'])
         next.reorder_threshold = pick(['reorder', 'reorder at', 'min', 'minimum'])
         next.unit_price = pick(['unit price', 'price', 'cost', 'rate'])
         setColumnMapping(next)
@@ -268,8 +298,14 @@ export default function Supplies() {
           return
         }
         if (status === 'completed') {
-          const created = st.data?.result?.created
-          setImportMsg(`Imported ${created ?? items.length} shop line(s).`)
+          const created = st.data?.result?.created ?? 0
+          const updated = st.data?.result?.updated ?? 0
+          const parts = []
+          if (created) parts.push(`${created} added`)
+          if (updated) parts.push(`${updated} updated`)
+          setImportMsg(
+            parts.length ? `Import complete: ${parts.join(', ')}.` : 'Import complete (no changes).'
+          )
           setImportOpen(false)
           resetImportWizard()
           fetchOverview()
@@ -286,7 +322,14 @@ export default function Supplies() {
     }
   }
 
+  function isRowInteractiveTarget(target) {
+    return Boolean(
+      target?.closest?.('button, a, input, select, textarea, label, [role="checkbox"]')
+    )
+  }
+
   function startEdit(s) {
+    setDetailItem(null)
     setEditingId(s._id)
     setEditError(null)
     setEditDraft({
@@ -345,12 +388,19 @@ export default function Supplies() {
       if (editDraft.unit_price === '') payload.unit_price = null
       else if (editDraft.unit_price != null && editDraft.unit_price !== '')
         payload.unit_price = Number(editDraft.unit_price)
-      await api.put(`/supplies/${editingId}`, payload)
+      const savedId = editingId
+      await api.put(`/supplies/${savedId}`, payload)
       setEditingId(null)
       setEditDraft(null)
-      fetchOverview()
+      setDetailItem(null)
+      await fetchOverview({ silent: true })
+      requestAnimationFrame(() => {
+        document
+          .querySelector(`[data-supply-row="${savedId}"]`)
+          ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      })
     } catch (err) {
-      setEditError(err?.response?.data?.error || 'Could not save')
+      setEditError(getApiErrorMessage(err, 'Could not save'))
     } finally {
       setEditSaving(false)
     }
@@ -403,6 +453,20 @@ export default function Supplies() {
 
   function closeDetails() {
     setDetailItem(null)
+  }
+
+  /** Admins: click a selected row to edit inline; otherwise open read-only details. */
+  function handleRowActivate(item) {
+    if (isAdmin && selectedIds.includes(item._id)) {
+      startEdit(item)
+      return
+    }
+    openDetails(item)
+  }
+
+  function editFirstSelected() {
+    const row = selectedShopRows[0]
+    if (row) startEdit(row)
   }
 
   const selectedShopRows = useMemo(() => {
@@ -504,6 +568,29 @@ export default function Supplies() {
     }
     return rows
   }, [shop])
+
+  const catalogJumpSections = useMemo(
+    () =>
+      shopTableRows
+        .filter((r) => r.type === 'group')
+        .map((r) => ({
+          id: inventorySectionId('catalog', r.label),
+          label: r.label,
+        })),
+    [shopTableRows]
+  )
+
+  const shopHealthTotals = useMemo(() => {
+    if (totals?.shop_healthy_skus != null && totals?.shop_low_stock_skus != null) {
+      return {
+        healthy: totals.shop_healthy_skus,
+        atOrBelowReorder: totals.shop_low_stock_skus,
+      }
+    }
+    return computeShopHealthCounts(shop)
+  }, [totals, shop])
+
+  const showInventoryJumpNav = !loading && !error && (shop.length > 0 || clients.length > 0)
 
   return (
     <div className="space-y-8">
@@ -717,7 +804,8 @@ export default function Supplies() {
                         <tr className="bg-gray-50 dark:bg-slate-800 text-left">
                           <th className="px-2 py-1">Name</th>
                           <th className="px-2 py-1">Category</th>
-                          <th className="px-2 py-1">Qty</th>
+                          <th className="px-2 py-1">On hand</th>
+                          <th className="px-2 py-1">Case</th>
                           <th className="px-2 py-1">Reorder</th>
                           <th className="px-2 py-1">Price</th>
                         </tr>
@@ -728,6 +816,7 @@ export default function Supplies() {
                             <td className="px-2 py-1">{row.name}</td>
                             <td className="px-2 py-1">{row.category || '—'}</td>
                             <td className="px-2 py-1 tabular-nums">{row.quantity_on_hand ?? '—'}</td>
+                            <td className="px-2 py-1 tabular-nums">{row.case_qty ?? '—'}</td>
                             <td className="px-2 py-1 tabular-nums">{row.reorder_threshold ?? '—'}</td>
                             <td className="px-2 py-1 tabular-nums">
                               {row.unit_price != null ? row.unit_price : '—'}
@@ -775,14 +864,25 @@ export default function Supplies() {
       )}
 
       {totals && !loading && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="space-y-5">
+          <section aria-labelledby="inventory-stock-status-heading">
+            <h2
+              id="inventory-stock-status-heading"
+              className="text-sm font-semibold text-gray-900 dark:text-white"
+            >
+              Stock status
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2">
+              Shop catalog and client-site inventory totals
+            </p>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Shop items (SKUs)</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Items (SKUs)</p>
             <p className="text-2xl font-bold text-gray-900 dark:text-white mt-0.5">{totals.shop_skus}</p>
           </div>
-          <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Shop units (qty)</p>
-            <p className="text-2xl font-bold text-teal-700 dark:text-teal-400 mt-0.5">{totals.shop_units}</p>
+          <div className="rounded-xl border border-teal-200 dark:border-teal-900/50 bg-teal-50/60 dark:bg-teal-950/25 px-4 py-3 shadow-sm">
+            <p className="text-xs font-medium text-teal-800 dark:text-teal-200 uppercase">Units on hand</p>
+            <p className="text-2xl font-bold text-teal-800 dark:text-teal-300 mt-0.5">{totals.shop_units}</p>
           </div>
           <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client site lines</p>
@@ -794,10 +894,89 @@ export default function Supplies() {
               {totals.client_fire_extinguisher_units}
             </p>
           </div>
+            </div>
+          </section>
+
+          <section aria-labelledby="inventory-shop-health-heading">
+            <h2
+              id="inventory-shop-health-heading"
+              className="text-sm font-semibold text-gray-900 dark:text-white"
+            >
+              Shop SKU health
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2">
+              Compared to each item&apos;s reorder threshold
+            </p>
+            <div className="grid grid-cols-2 sm:max-w-md gap-3">
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/80 dark:bg-emerald-950/30 px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200 uppercase">Healthy</p>
+                <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 mt-0.5">
+                  {shopHealthTotals.healthy}
+                </p>
+                <p className="text-[11px] text-emerald-800/80 dark:text-emerald-200/70 mt-1">Above reorder level</p>
+              </div>
+              <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 shadow-sm">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200 uppercase">At / below reorder</p>
+                <p className="text-2xl font-bold text-amber-900 dark:text-amber-100 mt-0.5">
+                  {shopHealthTotals.atOrBelowReorder}
+                </p>
+                <p className="text-[11px] text-amber-800/80 dark:text-amber-200/70 mt-1">Needs attention</p>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
-      {!loading && !error && <InventoryOverviewCharts shop={shop} clients={clients} />}
+      {showInventoryJumpNav && (
+        <nav
+          aria-label="Jump to inventory section"
+          className="sticky top-0 z-20 rounded-xl border border-gray-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm shadow-sm px-3 py-3 sm:px-4"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+            Jump to
+          </p>
+          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto sm:max-h-none">
+            <button
+              type="button"
+              className={jumpPillClass}
+              onClick={() => scrollToInventorySection(INVENTORY_SECTION.overview)}
+            >
+              Overview &amp; charts
+            </button>
+            <button
+              type="button"
+              className={jumpPillClass}
+              onClick={() => scrollToInventorySection(INVENTORY_SECTION.shop)}
+            >
+              Shop catalog
+            </button>
+            {catalogJumpSections.map((sec) => (
+              <button
+                key={sec.id}
+                type="button"
+                className={jumpPillClass}
+                onClick={() => scrollToInventorySection(sec.id)}
+                title={sec.label}
+              >
+                {sec.label.length > 28 ? `${sec.label.slice(0, 27)}…` : sec.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={jumpPillClass}
+              onClick={() => scrollToInventorySection(INVENTORY_SECTION.clients)}
+            >
+              Client sites
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {!loading && !error && (
+        <div id={INVENTORY_SECTION.overview} className="scroll-mt-32">
+          <InventoryOverviewCharts shop={shop} clients={clients} />
+        </div>
+      )}
 
       {loading && (
         <div className="flex justify-center py-12">
@@ -813,7 +992,7 @@ export default function Supplies() {
 
       {!loading && !error && (
         <>
-          <section>
+          <section id={INVENTORY_SECTION.shop} className="scroll-mt-32">
             <div className="flex flex-col gap-3 mb-3">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Shop / warehouse inventory</h2>
@@ -847,6 +1026,15 @@ export default function Supplies() {
                   >
                     Select all
                   </button>
+                  {isAdmin && selectedIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={editFirstSelected}
+                      className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-md font-medium hover:bg-teal-700 transition-colors"
+                    >
+                      Edit selected{selectedIds.length > 1 ? ` (${selectedIds.length})` : ''}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={clearSelected}
@@ -855,10 +1043,12 @@ export default function Supplies() {
                     Clear
                   </button>
                   <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-                    {selectedIds.length} selected (use checkboxes to select)
+                    {selectedIds.length} selected
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Click an item row to view details
+                    {isAdmin
+                      ? 'Select rows, then click one to edit — or click unselected rows for details'
+                      : 'Click a row for details · use checkboxes to print or email'}
                   </span>
                 </div>
                 {isAdmin && (
@@ -910,7 +1100,9 @@ export default function Supplies() {
               </p>
             </div>
             <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-2">
-              <span className="font-medium">Shop QOH</span> is on-hand quantity in your shop or trucks. Tier columns
+              <span className="font-medium">Shop QOH / On hand</span> is units in your shop or trucks (edit the On hand
+              column or import a CSV with a Shop QOH column). Kit size (person or shelf count) is shown on its own line
+              under the description. <span className="font-medium">Case qty</span> is pack size per case. Tier columns
               mirror the vendor sheet (Level I / R / N). Technicians do not see unit prices.
             </p>
             <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm">
@@ -1001,8 +1193,13 @@ export default function Supplies() {
                   <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
                     {shopTableRows.map((row) => {
                       if (row.type === 'group') {
+                        const groupSectionId = inventorySectionId('catalog', row.label)
                         return (
-                          <tr key={row.key} className="bg-slate-100/90 dark:bg-slate-800/70">
+                          <tr
+                            key={row.key}
+                            id={groupSectionId}
+                            className="bg-slate-100/90 dark:bg-slate-800/70 scroll-mt-32"
+                          >
                             <td
                               colSpan={shopColSpan}
                               className="px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 tracking-wide"
@@ -1016,7 +1213,11 @@ export default function Supplies() {
                       const low = s.quantity_on_hand <= s.reorder_threshold
                       const editing = isAdmin && editingId === s._id
                       const selected = selectedIds.includes(s._id)
-                      const { itemNo, description } = parseSupplyDisplayName(s.name)
+                      const { itemNo } = parseSupplyDisplayName(s.name)
+                      const { description: displayDesc, secondaryQty } = formatSupplyCatalogLines(
+                        s.name,
+                        s
+                      )
                       const showPricing = isAdmin
                       const tierHidden = (
                         <div className="text-right text-gray-400 dark:text-gray-500">
@@ -1027,21 +1228,32 @@ export default function Supplies() {
                       return (
                         <tr
                           key={s._id}
-                          onClick={() => {
-                            if (!editing) openDetails(s)
+                          data-supply-row={s._id}
+                          onClick={(e) => {
+                            if (editing) return
+                            if (isRowInteractiveTarget(e.target)) return
+                            handleRowActivate(s)
                           }}
                           onKeyDown={(e) => {
                             if (editing) return
+                            if (isRowInteractiveTarget(e.target)) return
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault()
-                              openDetails(s)
+                              handleRowActivate(s)
                             }
                           }}
                           role={editing ? undefined : 'button'}
                           tabIndex={editing ? undefined : 0}
+                          title={
+                            isAdmin && selected
+                              ? 'Click to edit this item'
+                              : 'Click to view details'
+                          }
                           className={`${
                             selected
-                              ? 'bg-blue-50/80 dark:bg-blue-950/30'
+                              ? isAdmin
+                                ? 'bg-teal-50/90 dark:bg-teal-950/25 ring-1 ring-inset ring-teal-200/80 dark:ring-teal-800/60'
+                                : 'bg-blue-50/80 dark:bg-blue-950/30'
                               : low
                               ? 'bg-red-50/80 dark:bg-red-950/20'
                               : 'hover:bg-gray-50 dark:hover:bg-slate-800/50'
@@ -1053,7 +1265,7 @@ export default function Supplies() {
                               checked={selected}
                               onChange={() => toggleSelect(s._id)}
                               onClick={(e) => e.stopPropagation()}
-                              aria-label={`Select ${description}`}
+                              aria-label={`Select ${displayDesc}`}
                             />
                           </td>
                           {editing ? (
@@ -1097,7 +1309,12 @@ export default function Supplies() {
                                 {itemNo}
                               </td>
                               <td className="px-3 py-3 text-sm text-gray-800 dark:text-gray-200">
-                                <span className="block">{description}</span>
+                                <span className="block leading-snug">{displayDesc}</span>
+                                {secondaryQty != null && (
+                                  <span className="block tabular-nums font-semibold text-gray-900 dark:text-white mt-0.5">
+                                    {secondaryQty}
+                                  </span>
+                                )}
                                 <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                                   {s.category || 'General'}
                                 </span>
@@ -1326,8 +1543,6 @@ export default function Supplies() {
                                     e.stopPropagation()
                                     startEdit(s)
                                   }}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  onClickCapture={(e) => e.stopPropagation()}
                                   className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
                                 >
                                   Edit
@@ -1361,7 +1576,7 @@ export default function Supplies() {
             </div>
           </section>
 
-          <section>
+          <section id={INVENTORY_SECTION.clients} className="scroll-mt-32">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Client site inventory</h2>
               <Link
@@ -1528,17 +1743,33 @@ export default function Supplies() {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 id="inventory-detail-title" className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {parseSupplyDisplayName(detailItem.name).description}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Item # {parseSupplyDisplayName(detailItem.name).itemNo}
-                </p>
+              {(() => {
+                const { titleLine, secondaryQty } = formatSupplyCatalogLines(detailItem.name, detailItem)
+                const { itemNo } = parseSupplyDisplayName(detailItem.name)
+                return (
+                  <>
+                    <h3
+                      id="inventory-detail-title"
+                      className="text-lg font-semibold text-gray-900 dark:text-white leading-snug"
+                    >
+                      {titleLine}
+                    </h3>
+                    {secondaryQty != null && (
+                      <p className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white mt-1">
+                        {secondaryQty}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Item # {itemNo}
+                    </p>
+                  </>
+                )
+              })()}
               </div>
               <button
                 type="button"
                 onClick={closeDetails}
-                className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 shrink-0"
               >
                 Close
               </button>
@@ -1576,6 +1807,21 @@ export default function Supplies() {
                 <p>Min order: {detailItem.min_order_qty ?? '—'} @ {fmtMoneyCell(detailItem.min_order_unit_price)}</p>
                 <p>Level R: {detailItem.discount_r_qty ?? '—'} @ {fmtMoneyCell(detailItem.discount_r_unit_price)}</p>
                 <p>Level N: {detailItem.discount_n_qty ?? '—'} @ {fmtMoneyCell(detailItem.discount_n_unit_price)}</p>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeDetails()
+                    startEdit(detailItem)
+                  }}
+                  className="text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-lg transition-colors"
+                >
+                  Edit item
+                </button>
               </div>
             )}
           </div>

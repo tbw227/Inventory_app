@@ -1,4 +1,5 @@
 const PDFDocument = require('pdfkit');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -39,7 +40,7 @@ async function generateServiceReportPdf(job) {
   const completedDate = job.completed_at ? new Date(job.completed_at).toLocaleDateString() : new Date().toLocaleDateString();
 
   return new Promise((resolve, reject) => {
-    const fileName = `report-${job._id}.pdf`;
+    const fileName = `report-${crypto.randomUUID()}.pdf`;
     const filePath = path.join(UPLOADS_DIR, fileName);
 
     const doc = new PDFDocument();

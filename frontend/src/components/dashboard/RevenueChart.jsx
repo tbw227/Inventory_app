@@ -28,7 +28,9 @@ export default function RevenueChart({ data, dayCount = 30 }) {
       ? chartData.reduce((a, p) => a + p.total, 0) / chartData.length
       : 0
 
-  const hasRevenue = (data || []).some((d) => Number(d.total) > 0)
+  const hasRevenue =
+    (data || []).some((d) => Number(d.total) > 0) ||
+    chartData.some((p) => Number(p.total) > 0)
   if (!hasRevenue) {
     return (
       <div className="h-[320px] flex items-center justify-center text-sm text-slate-500 dark:text-slate-400 border border-dashed border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50/50 dark:bg-slate-800/30">

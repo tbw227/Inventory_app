@@ -50,6 +50,8 @@ npm run dev
 
 **Docker (Postgres + API + nginx frontend):** from repo root, `docker compose up --build` (see [`docker-compose.yml`](docker-compose.yml)).
 
+**Production (Vercel SPA + API on Railway/Render + Supabase):** see [`docs/DEPLOY_API.md`](docs/DEPLOY_API.md), [`docs/RAILWAY.md`](docs/RAILWAY.md), and [`render.yaml`](render.yaml).
+
 ---
 
 ## Tech stack
@@ -163,6 +165,9 @@ Frontend samples: [`frontend/.env.sample`](frontend/.env.sample).
 | [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) | WCAG 2.2 AA baseline, required patterns, tooling |
 | [docs/adr/](./docs/adr/) | Architecture decision records (Prisma, JWT, Supabase) |
 | [SUPABASE.md](./SUPABASE.md) | Hosted Postgres setup |
+| [docs/KUBERNETES.md](./docs/KUBERNETES.md) | Kubernetes + NGINX Ingress scaling |
+| [docs/MONITORING.md](./docs/MONITORING.md) | Prometheus metrics + Grafana dashboards |
+| [docs/MARKETING_SITE.md](./docs/MARKETING_SITE.md) | Public marketing site (separate repo) |
 | [COMMIT_GUIDE.md](./COMMIT_GUIDE.md) | Commit conventions |
 | [QUICKREF.md](./QUICKREF.md) | Command cheat sheet |
 | [STATUS.md](./STATUS.md) | Short project snapshot (kept in sync with this README) |

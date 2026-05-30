@@ -4,6 +4,25 @@ const AppError = require('../utils/AppError');
 const prismaPaginate = require('../utils/prismaPaginate');
 const { isUuid } = require('../utils/ids');
 const { formatUserRecord } = require('../utils/legacyApiShape');
+const { bustCompanyCache } = require('./tenantCacheService');
+
+const userSelect = {
+  id: true,
+  companyId: true,
+  role: true,
+  name: true,
+  email: true,
+  phone: true,
+  photoUrl: true,
+  bio: true,
+  location: true,
+  birthday: true,
+  skills: true,
+  preferences: true,
+  vehicleInventory: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 function sameCompany(userCompanyId, requestCompanyId) {
   if (userCompanyId == null || requestCompanyId == null) return false;
@@ -22,22 +41,7 @@ async function listUsers(companyId, query) {
     {
       defaultSort: 'name',
       orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        companyId: true,
-        role: true,
-        name: true,
-        email: true,
-        phone: true,
-        photoUrl: true,
-        bio: true,
-        location: true,
-        birthday: true,
-        skills: true,
-        preferences: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: userSelect,
     }
   );
   const withNames = await Promise.all(
@@ -61,22 +65,7 @@ async function getUser(companyId, userId) {
   }
   const user = await prisma.user.findUnique({
     where: { id: String(userId) },
-    select: {
-      id: true,
-      companyId: true,
-      role: true,
-      name: true,
-      email: true,
-      phone: true,
-      photoUrl: true,
-      bio: true,
-      location: true,
-      birthday: true,
-      skills: true,
-      preferences: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: userSelect,
   });
   if (!user || !sameCompany(user.companyId, companyId)) {
     throw new AppError('User not found', 404);
@@ -113,22 +102,7 @@ async function createUser(companyId, data) {
       skills: userData.skills ?? [],
       preferences: userData.preferences ?? {},
     },
-    select: {
-      id: true,
-      companyId: true,
-      role: true,
-      name: true,
-      email: true,
-      phone: true,
-      photoUrl: true,
-      bio: true,
-      location: true,
-      birthday: true,
-      skills: true,
-      preferences: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: userSelect,
   });
 
   const companyDoc = await prisma.company.findUnique({
@@ -173,23 +147,35 @@ async function updateUser(companyId, userId, data) {
   const user = await prisma.user.update({
     where: { id: String(userId) },
     data: updateData,
-    select: {
-      id: true,
-      companyId: true,
-      role: true,
-      name: true,
-      email: true,
-      phone: true,
-      photoUrl: true,
-      bio: true,
-      location: true,
-      birthday: true,
-      skills: true,
-      preferences: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: userSelect,
   });
+
+  const companyDoc = await prisma.company.findUnique({
+    where: { id: user.companyId },
+    select: { name: true },
+  });
+  return formatUserRecord(user, { company_name: companyDoc?.name || '' });
+}
+
+async function updateVehicleInventory(companyId, userId, vehicleInventory) {
+  const existing = await prisma.user.findFirst({
+    where: { id: String(userId), companyId: String(companyId) },
+    select: { id: true, role: true },
+  });
+  if (!existing) {
+    throw new AppError('User not found', 404);
+  }
+  if (existing.role !== 'technician') {
+    throw new AppError('Vehicle inventory applies to technicians only', 400);
+  }
+
+  const user = await prisma.user.update({
+    where: { id: String(userId) },
+    data: { vehicleInventory: vehicleInventory ?? [] },
+    select: userSelect,
+  });
+
+  bustCompanyCache(companyId);
 
   const companyDoc = await prisma.company.findUnique({
     where: { id: user.companyId },
@@ -228,22 +214,7 @@ async function updateOwnProfile(companyId, userId, data) {
   const user = await prisma.user.update({
     where: { id: String(userId) },
     data: updateData,
-    select: {
-      id: true,
-      companyId: true,
-      role: true,
-      name: true,
-      email: true,
-      phone: true,
-      photoUrl: true,
-      bio: true,
-      location: true,
-      birthday: true,
-      skills: true,
-      preferences: true,
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: userSelect,
   });
 
   const companyDoc = await prisma.company.findUnique({
@@ -266,4 +237,12 @@ async function deleteUser(companyId, userId, requesterId) {
   }
 }
 
-module.exports = { listUsers, getUser, createUser, updateUser, updateOwnProfile, deleteUser };
+module.exports = {
+  listUsers,
+  getUser,
+  createUser,
+  updateUser,
+  updateOwnProfile,
+  updateVehicleInventory,
+  deleteUser,
+};

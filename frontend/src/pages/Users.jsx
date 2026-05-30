@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { safeRedirect } from '../utils/safeRedirect'
 import api from '../services/api'
 import { unwrapList } from '../utils/unwrapList'
 import { useAuth } from '../context/AuthContext'
@@ -62,7 +63,7 @@ export default function Users() {
     const u = users.find((x) => String(x._id) === String(editId))
     if (u) {
       openEdit(u)
-      navigate(location.pathname, { replace: true, state: {} })
+      navigate(safeRedirect(location.pathname, '/users'), { replace: true, state: {} })
     }
   }, [users, location.state, location.pathname, navigate])
 

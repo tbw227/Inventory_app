@@ -1,405 +1,277 @@
-# 🎯 Inventory App - Complete Development Summary
+# Inventory App - Project Overview
 
-## Project Overview
+## Product
 
-**Product:** Multi-tenant SaaS platform for safety & first aid service companies  
-**Feature Set:** Job management, supply tracking, PDF reports, automated emails  
-**Architecture:** MERN with multi-tenant data isolation  
-**Phase:** MVP Security Implementation Complete (Phase 1)  
-
----
-
-## 🏗️ What's Been Built
-
-### Database Layer ✅
-```
-Companies
-├── Users (technician, admin) → password hashed ✅
-├── Clients (customers being serviced)
-└── Jobs
-    ├── supplies_used[] (embedded)
-    ├── photos[] (embedded)
-    ├── service_report_url (PDF link)
-    └── completed_at (timestamp)
-
-Supplies (inventory)
-└── quantity_on_hand (auto-decrements on job completion)
-```
-
-All models enforce `company_id` for multi-tenant isolation.
-
-### API Endpoints ✅
-
-| Endpoint | Method | Purpose | Status |
-|----------|--------|---------|--------|
-| `/api/companies` | POST/GET | Create/list companies | ✅ Working |
-| `/api/users` | POST/GET | Create users (hashed passwords) | ✅ Working |
-| `/api/clients` | POST/GET | Create/list clients | ✅ Working |
-| `/api/jobs` | POST/GET | Create/list jobs | ✅ Working |
-| `/api/jobs/:id/complete` | POST | Complete job + PDF + email | ✅ Working |
-| `/api/health` | GET | Health check | ✅ Working |
-| `/api/auth/login` | POST | Login (TO CREATE) | ❌ Missing |
-| `/api/auth/logout` | POST | Logout (TO CREATE) | ❌ Missing |
-| `/api/auth/me` | GET | Get current user (TO CREATE) | ❌ Missing |
-
-### Security Implementations (Phase 1) ✅
-
-| Security Layer | Implementation | Status |
-|---|---|---|
-| **HTTP Headers** | Helmet.js (X-Frame, CSP, HSTS, etc.) | ✅ Complete |
-| **DDoS/Brute Force** | express-rate-limit (100 req/15min) | ✅ Complete |
-| **Password Hashing** | bcryptjs (10 salt rounds) | ✅ Complete |
-| **Input Validation** | Joi schemas on all POST/PUT endpoints | ✅ Complete |
-| **Error Handling** | Centralized middleware (no info leaks) | ✅ Complete |
-| **Request Logging** | Morgan (audit trail for security) | ✅ Complete |
-| **Authentication** | JWT middleware (TO CREATE) | ❌ Not Started |
-| **Authorization** | Role-based access control (TO CREATE) | ❌ Not Started |
-
-### Testing Framework ✅
-
-```
-Jest Test Suite: 39 PASSING TESTS ✅
-
-Coverage:
-├── Models (5 files)
-│   ├── Company model ✅
-│   ├── User model ✅
-│   ├── Client model ✅
-│   ├── Job model ✅
-│   └── Supply model ✅
-├── Routes (2 files)
-│   ├── Jobs API endpoints ✅
-│   └── Utility functions ✅
-└── Reporting
-    ├── PDF generation ✅
-    └── Integration tests ✅
-
-Setup:
-- mongodb-memory-server (in-memory test DB)
-- supertest (HTTP testing)
-- Jest snapshot testing
-- Test environment isolation
-```
-
-### Git History ✅
-
-```
-9 commits (clean, semantic):
-- Initial project setup
-- Add database models
-- Add API routes
-- Add PDF and email utilities
-- Initialize Jest testing framework
-- Add 39 passing tests
-- Implement Phase 1 security (helmet, validation, auth, logging, error handling)
-- Add comprehensive documentation (SECURITY.md, AUTHENTICATION.md, STATUS.md)
-```
+**Product:** Multi-tenant SaaS platform for safety & first aid service companies
+**Core value:** Job management, supply/inventory tracking, PDF service reports, payments, and analytics
+**Architecture:** Node.js + Express API with React SPA, multi-tenant data isolation via `company_id`
+**Database:** PostgreSQL (Supabase) with Prisma ORM
+**Target market:** Field service teams of 10–100+ employees
 
 ---
 
-## 📊 Development Progress
-
-### Completed Work (This Session)
-
-**Backend Infrastructure:**
-- ✅ 5 MongoDB models (Company, User, Client, Job, Supply)
-- ✅ 4 Express route files (companies, users, clients, jobs)
-- ✅ 3 utility modules (PDF generation, email, password hashing)
-- ✅ 3 middleware layers (error handling, validation, logging)
-- ✅ Full CRUD operations for all resources
-- ✅ Job completion workflow (inventory decrement + PDF + email)
-
-**Security:**
-- ✅ Helmet HTTP security headers
-- ✅ Rate limiting (100 req/15min)
-- ✅ Password hashing (bcryptjs, 10 rounds)
-- ✅ Input validation (Joi schemas)
-- ✅ Error handling (centralized, no leaks)
-- ✅ Request logging (Morgan)
-
-**Testing:**
-- ✅ 39 passing tests
-- ✅ Model tests (schemas, validation)
-- ✅ Route tests (endpoints, responses)
-- ✅ Utility tests (PDF, email)
-- ✅ In-memory database for test isolation
-- ✅ Test environment configuration
-
-**DevOps:**
-- ✅ Git repository (9 clean commits)
-- ✅ .gitignore configured
-- ✅ .env for environment variables
-- ✅ npm scripts (start, test, dev)
-- ✅ MongoDB Atlas connection (production-ready)
-
----
-
-## 🚀 What's Next (Prioritized)
-
-### Phase 2: Secure MVP (1-2 weeks)
-
-#### Step 1: JWT Authentication (2-3 hours)
-```
-Goal: Users login with email + password, get token
-
-Files to create:
-- middleware/auth.js (generateToken, authenticateToken)
-- routes/auth.js (POST /login, POST /logout, GET /me)
-
-Tasks:
-1. npm install jsonwebtoken
-2. Create auth middleware (sign/verify tokens)
-3. Create login endpoint (email + password → token)
-4. Test with supertest
-5. Document in AUTHENTICATION.md ✅ (already done)
-
-Result: Users can authenticate, API is secure from API key access
-```
-
-#### Step 2: Role-Based Access Control (1-2 hours)
-```
-Goal: Different users have different permissions
-
-Implementation:
-- middleware/rbac.js (check user.role)
-- Add @requireRole('admin') or @requireRole('technician') to routes
-- Technicians see only assigned jobs
-- Admins see all company jobs
-
-Routes to protect:
-- GET /jobs → filter by role
-- POST /jobs → only admins
-- PUT /jobs/:id → only admin or assigned technician
-```
-
-#### Step 3: Testing Phase 2 (1 hour)
-```
-Add to __tests__:
-- middleware/auth.test.js (JWT generation/verification)
-- routes/auth.test.js (login/logout flows)
-- middleware/rbac.test.js (role-based access)
-
-Goal: 50+ tests passing (up from 39)
-```
-
-### Phase 3: Launch Ready (2-3 weeks)
-
-#### Step 1: React Frontend (5-7 hours)
-```
-Create React Vite project with:
-
-Screens:
-1. Login screen (POST /auth/login)
-2. Job list (GET /api/jobs)
-3. Job detail (GET /api/jobs/:id)
-4. Job completion form (supplies, photos, signature)
-5. Admin dashboard (inventory, job status)
-
-Components:
-- LoginForm
-- JobCard
-- JobDetail
-- JobCompletionForm
-- InventoryTable
-- Header + Navigation
-
-State Management: React Context or Zustand
-```
-
-#### Step 2: Deployment (1-2 hours)
-```
-Backend: Deploy to Railway, Heroku, or AWS
-- Set NODE_ENV=production
-- Use MongoDB Atlas (already set up)
-- Configure JWT_SECRET, other env vars
-- Set up health check monitoring
-
-Frontend: Deploy to Vercel, Netlify
-- Build: npm run build
-- Preview: npm run build && npm run preview
-- Connect custom domain
-
-Database: MongoDB Atlas
-- Enable authentication
-- IP whitelist (only app servers)
-- Enable backups
-```
-
----
-
-## 📈 Quality Metrics
-
-| Metric | Current | Target |
-|--------|---------|--------|
-| **Tests Passing** | 39/39 ✅ | 50+ |
-| **Security Score** | 7/10 | 9/10 (after Phase 2) |
-| **Documentation** | 4 files | 6+ files |
-| **API Endpoints** | 20+ | 25+ |
-| **Response Times** | Sub-100ms (local) | < 500ms (production) |
-| **Uptime** | N/A (not deployed) | 99.9% SLA |
-| **Code Coverage** | ~70% | 85%+ |
-
----
-
-## 🔐 Security Checklist
-
-### Phase 1: MVP Security ✅ DONE
-- [x] Helmet (HTTP headers)
-- [x] Rate limiting
-- [x] Password hashing
-- [x] Input validation
-- [x] Error handling
-- [x] Request logging
-
-### Phase 2: Before Customers ⏳ IN PROGRESS
-- [ ] JWT authentication
-- [ ] Role-based access control
-- [ ] HTTPS enforcement
-- [ ] Environment variables locked down
-- [ ] Database authentication enabled
-- [ ] API key rotation strategy
-
-### Phase 3: Production ❌ NOT STARTED
-- [ ] Secrets management (AWS/Vault)
-- [ ] Dependency scanning (npm audit)
-- [ ] Data encryption at rest
-- [ ] Audit logging (all changes tracked)
-- [ ] Monitoring & alerting
-- [ ] Incident response plan
-- [ ] Backup & disaster recovery
-
----
-
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend
-```json
-{
-  "runtime": "Node.js 18+",
-  "framework": "Express 4.18",
-  "database": "MongoDB (Atlas)",
-  "authentication": "JWT (to implement)",
-  "validation": "Joi",
-  "security": [
-    "helmet",
-    "express-rate-limit",
-    "bcryptjs",
-    "morgan"
-  ],
-  "utilities": [
-    "pdfkit (PDF generation)",
-    "nodemailer (email)",
-    "mongoose (ODM)"
-  ]
-}
-```
+| Layer | Technology | Version |
+|---|---|---|
+| Runtime | Node.js | 18+ |
+| Framework | Express | 5.x |
+| ORM | Prisma Client | 6.19 |
+| Database | PostgreSQL (Supabase) | — |
+| Auth | JWT (jsonwebtoken) | 9.x |
+| Validation | Joi | 18.x |
+| File uploads | Multer | 2.x |
+| Image processing | Sharp | 0.34 |
+| PDF generation | PDFKit | 0.13 |
+| Email | Nodemailer | 8.x |
+| Payments | Stripe | 22.x |
+| Monitoring | Sentry | 10.x |
+| Logging | Winston + Morgan | — |
+| Security | Helmet, express-rate-limit, bcryptjs | — |
+| API docs | Swagger (swagger-jsdoc + swagger-ui-express) | — |
+| Testing | Jest 30 + Supertest 7 | — |
 
-### Frontend (Planned)
-```json
-{
-  "framework": "React 18",
-  "bundler": "Vite",
-  "styling": "Tailwind CSS",
-  "state": "React Context or Zustand",
-  "http": "axios or fetch API",
-  "deployment": "Vercel/Netlify"
-}
-```
+### Frontend
+| Layer | Technology | Version |
+|---|---|---|
+| Framework | React | 18.2 |
+| Bundler | Vite | 8.x |
+| Styling | Tailwind CSS | 3.4 |
+| State management | React Context + hooks | built-in |
+| Routing | React Router DOM | 6.x |
+| HTTP client | Axios | 1.15 |
+| Charts | Recharts | 3.8 |
+| Animations | Framer Motion | 12.x |
+| QR/Barcode scanning | @zxing/browser | 0.1 |
+| Barcode generation | JsBarcode | 3.12 |
+| CSV parsing | PapaParse | 5.5 |
+| PWA | vite-plugin-pwa | 1.3 |
+| Payments UI | @stripe/react-stripe-js | 6.x |
+| Supabase client | @supabase/supabase-js | 2.x |
 
 ---
 
-## 📋 Files & Organization
+## Database Schema (Prisma / PostgreSQL)
+
+```
+Company
+├── Users (admin, technician) — JWT auth, bcrypt passwords, preferences
+├── Clients — service contracts, required supplies, QuickBooks sync
+│   └── Locations — per-client service sites, station inventory
+├── Supplies — inventory items, pricing tiers, reorder thresholds, categories
+├── Jobs — scheduled work, supply tracking, photos, PDF reports, billing
+│   ├── JobLocations (many-to-many)
+│   └── Payments — Stripe payment intents per job
+├── SupplyImportJobs → SupplyImportRows (CSV bulk import pipeline)
+└── QuickBooksConnection — OAuth tokens for QB integration
+```
+
+**Enums:** UserRole, JobStatus, PaymentStatus, SubscriptionTier, SubscriptionStatus, SupplyImportJobStatus/Type/RowStatus
+
+All models enforce `company_id` foreign key for multi-tenant isolation.
+
+---
+
+## Backend Services (17)
+
+| Service | Purpose |
+|---|---|
+| authService | Login, JWT generation/verification, password reset |
+| userService | CRUD users, profile updates, photo upload |
+| companyService | Company management, subscription tier |
+| clientService | CRUD clients, service dates |
+| jobService | CRUD jobs, completion workflow, supply decrement |
+| supplyService | CRUD supplies, reorder alerts, stock management |
+| supplyImportService | CSV bulk import pipeline for supplies |
+| locationService | CRUD client locations, station inventory |
+| paymentService | Stripe payment intents, payment recording |
+| subscriptionService | Stripe subscription lifecycle |
+| dashboardService | Analytics aggregation (revenue, job stats, inventory) |
+| weatherService | OpenWeather / Open-Meteo forecasts per tenant |
+| twcWeatherService | The Weather Company v3 integration |
+| emailService | Transactional emails via Nodemailer |
+| pdfService | Service report PDF generation (PDFKit) |
+| quickbooksService | QuickBooks OAuth + API calls |
+| quickbooksIntegrationService | QB sync orchestration |
+
+## API Routes (14 route files)
+
+| Route file | Key endpoints |
+|---|---|
+| auth | POST /login, POST /logout, GET /me, POST /forgot-password, POST /reset-password |
+| users | GET /, POST /, GET /:id, PUT /:id, DELETE /:id |
+| companies | GET /, POST /, PUT /:id |
+| clients | GET /, POST /, GET /:id, PUT /:id, DELETE /:id |
+| jobs | GET /, POST /, GET /:id, PUT /:id, POST /:id/complete, POST /:id/inventory-used |
+| supplies | GET /, POST /, PUT /:id, DELETE /:id, POST /import |
+| locations | GET /, POST /, PUT /:id, DELETE /:id |
+| payments | GET /, POST /create-intent, POST /confirm |
+| dashboard | GET /summary, GET /analytics |
+| weather | GET /forecast |
+| upload | POST /photo |
+| uploads | Static file serving |
+| integrations | QuickBooks OAuth flow |
+| webhooks | Stripe webhook handler |
+
+## Middleware (5)
+
+| Middleware | Purpose |
+|---|---|
+| auth | JWT verification, `req.user` injection, role guards |
+| validation | Joi schema validation on request bodies |
+| errorHandler | Centralized error formatting, no info leaks |
+| logger | Morgan HTTP request logging |
+| responseCacheControl | Cache-Control headers for static assets |
+
+---
+
+## Frontend Pages (22)
+
+| Page | Description |
+|---|---|
+| Login | Email/password authentication |
+| ForgotPassword | Password reset request |
+| ResetPassword | Token-based password reset |
+| Dashboard.new | Main landing — hero card, KPIs, revenue chart, calendar, analytics |
+| Jobs | Job list with status filters |
+| JobDetail | Single job view, supply usage, photos, completion |
+| JobHistory | Completed jobs archive |
+| ScanJob | QR code scanner to open jobs |
+| Clients | Client list management |
+| ClientDetail | Client detail, locations, service dates |
+| Supplies | Inventory management, CSV import, reorder alerts |
+| Users | Team member list (admin) |
+| UserDetail | User profile, assigned jobs |
+| Profile | Current user profile editing |
+| Settings | App preferences, weather theme, accent color, billing, QuickBooks |
+| Locations | Client location management |
+| Labels / PrintLabels / JobLabel | QR code & barcode label generation and printing |
+| WeatherDemo | Weather widget showcase |
+
+## Key Frontend Components
+
+**Dashboard:** DashboardHero, DashboardKpis, DashboardCharts, HeroRevenueChart, RevenueChart, RevenueBreakdownCharts, InventoryAnalyticsCharts, InventoryOverviewCharts
+
+**Weather system:** WeatherWidget, WeatherMini, WeatherFull, AnimatedWeather, WeatherConditionIcon — multi-source (OpenWeather, Open-Meteo, The Weather Company), themed, condition-aware animations
+
+**Layout:** Layout (sidebar + header + bottom nav), BottomNav
+
+**Shared UI:** Avatar, AuthedImg, QrScanner, FullScreenModal, HomeNavLink
+
+**Custom hooks (11):** useDashboardData, useCalendarData, useJobs, useJob, useTenantWeather, useWeatherCompany, useExtraContent, useOrgWeatherSettings, usePreferenceSettings, useQuickBooksSettings, useBillingSettings
+
+**State management:** React Context (AuthContext, ThemeContext) + useState/useEffect for local state
+
+---
+
+## Security
+
+| Layer | Implementation | Status |
+|---|---|---|
+| Authentication | JWT tokens (jsonwebtoken), bcryptjs password hashing | Done |
+| Authorization | Role-based access control (admin/technician) via auth middleware | Done |
+| HTTP headers | Helmet.js (CSP, HSTS, X-Frame, etc.) | Done |
+| Rate limiting | express-rate-limit | Done |
+| Input validation | Joi schemas on all mutating endpoints | Done |
+| Input sanitization | Path traversal protection, regex whitelisting on params | Done |
+| XSS prevention | Safe mailto/tel links, safeRedirect utility | Done |
+| Open redirect | safeRedirect guard on all navigate/Navigate calls | Done |
+| Error handling | Centralized middleware, no stack traces in production | Done |
+| Request logging | Morgan + Winston | Done |
+| Payments | Stripe webhook signature verification | Done |
+| File uploads | Multer with size limits, Sharp image processing | Done |
+| CSRF/CRLF | Nodemailer 8.x (patched), Axios 1.15 (patched) | Done |
+
+## Third-Party Integrations
+
+| Integration | Purpose |
+|---|---|
+| **Stripe** | Payments (payment intents), subscriptions (tiered plans), webhook events |
+| **Supabase** | PostgreSQL hosting, potential file storage |
+| **OpenWeather / Open-Meteo** | Weather forecasts for job scheduling |
+| **The Weather Company** | Premium weather data (optional) |
+| **Nodemailer** | Transactional email (service reports, password resets) |
+| **QuickBooks** | Accounting sync (OAuth2 integration) |
+| **Sentry** | Error monitoring and performance tracking |
+| **GNews / RSS** | News headlines for dashboard extras |
+
+---
+
+## Testing
+
+```
+Framework: Jest 30 + Supertest 7
+
+Test files:
+├── backend/__tests__/helpers.js (test data factory + credentials)
+└── backend/__tests__/routes/
+    └── auth.test.js (authentication flow tests)
+```
+
+Test credentials are centralized via `TEST_CREDENTIALS` with env var overrides.
+
+---
+
+## DevOps & Scripts
+
+**Root** (`package.json`):
+- `dev` — runs backend + frontend concurrently
+- `dev:backend` / `dev:frontend` — individual dev servers
+- `supabase:start` / `supabase:stop` / `supabase:status`
+
+**Backend** (`backend/package.json`):
+- `start` / `dev` — Node server
+- `test` / `test:watch` / `test:coverage` — Jest
+- `prisma:generate` / `prisma:migrate` / `prisma:deploy` — Prisma CLI
+- `postinstall` — auto-runs `prisma generate`
+
+**Frontend** (`frontend/package.json`):
+- `dev` — Vite dev server
+- `build` — production build
+- `preview` — preview production build
+
+---
+
+## Business Model
+
+**Target:** Safety & first aid field service companies
+**Team sizes:** 10–100+ employees per tenant
+**Subscription tiers:** Basic, Growth, Pro
+**Payments:** Per-job payment collection via Stripe
+**Integrations:** QuickBooks for accounting sync
+
+---
+
+## File Structure
 
 ```
 Inventory_app/
-├── 📄 README.md (to create)
-├── 📄 SECURITY.md ✅
-├── 📄 AUTHENTICATION.md ✅
-├── 📄 TESTING.md ✅
-├── 📄 STATUS.md ✅
-├── 📄 .env.example
-├── 📄 package.json
-├── 📄 server.js
-│
-├── 📁 models/ (5 files, all complete)
-├── 📁 routes/ (4 files + auth.js to create)
-├── 📁 middleware/ (3 files + rbac.js to create)
-├── 📁 utils/ (3 files)
-├── 📁 __tests__/ (39 tests, well-organized)
-│
-└── 📁 frontend/ (to create - React app)
+├── backend/
+│   ├── prisma/schema.prisma          (14 models)
+│   ├── routes/                       (14 route files)
+│   ├── services/                     (17 service files)
+│   ├── middleware/                    (5 middleware files)
+│   ├── controllers/                  (route handlers)
+│   ├── utils/                        (AppError, helpers)
+│   ├── config/                       (db.js)
+│   ├── __tests__/                    (Jest test suite)
+│   ├── app.js                        (Express app setup)
+│   └── server.js                     (entry point)
+├── frontend/
+│   ├── src/
+│   │   ├── pages/                    (22 page components)
+│   │   ├── components/               (dashboard, layout, ui, tech, shared)
+│   │   ├── features/weather/         (weather system — 11 files)
+│   │   ├── hooks/                    (11 custom hooks)
+│   │   ├── context/                  (AuthContext, ThemeContext)
+│   │   ├── services/api.js           (Axios instance + interceptors)
+│   │   ├── config/                   (routes, dashboard accents)
+│   │   └── utils/                    (safeRedirect, mediaUrl, etc.)
+│   ├── vite.config.js
+│   └── package.json
+├── docs/
+│   └── CSS_MAP.md
+├── SUMMARY.md                        (this file)
+└── package.json                      (root monorepo scripts)
 ```
-
----
-
-## ⚡ Quick Start Commands
-
-```bash
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Start development server
-npm run dev
-
-# View API documentation
-curl http://localhost:5000/api/health
-
-# Create a commit
-git add .
-git commit -m "feat: your feature here"
-
-# Push to GitHub
-git push origin main
-```
-
----
-
-## 🎓 Learning Outcomes
-
-By the end of this project, you've learned:
-
-✅ **MERN Stack:** MongoDB, Express, React, Node.js  
-✅ **Multi-tenant Architecture:** Data isolation by company_id  
-✅ **Security Best Practices:** Hashing, validation, rate limiting, HTTPS  
-✅ **Testing:** Jest, supertest, test database setup  
-✅ **API Design:** RESTful endpoints, error handling, logging  
-✅ **DevOps:** Environment configuration, deployment readiness  
-✅ **Git Workflow:** Clean commits, semantic versioning  
-
----
-
-## 💰 Business Potential
-
-**Market:** Safety & First Aid Service Companies  
-**Target:** 10-50 person field service teams  
-**Pricing:** $99-299/month SaaS  
-**TAM:** ~50,000 qualified companies in USA  
-
-**MVP Revenue Potential:**
-- 10 customers × $150/month = $1,500/month
-- 50 customers × $150/month = $7,500/month
-- 100 customers × $150/month = $15,000/month
-
-**Success Metrics:**
-- First customer within 4 weeks
-- 10 customers within 3 months
-- Feature-positive unit economics by month 6
-
----
-
-## 🏁 Conclusion
-
-**Current State:** Feature-complete, secure, tested MVP backend ready for authentication implementation.
-
-**Next Step:** Implement JWT authentication (Phase 2), then build React frontend (Phase 3).
-
-**Timeline:** 3-4 weeks to production-ready with customers.
-
-**Key Principle:** Keep It Simple, Stupid (KISS) - avoid over-engineering, launch fast, iterate based on customer feedback.
-
----
-
-See [STATUS.md](STATUS.md) for the detailed roadmap and [AUTHENTICATION.md](AUTHENTICATION.md) for Phase 2 implementation guide.

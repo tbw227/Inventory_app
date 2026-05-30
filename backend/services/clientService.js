@@ -3,8 +3,17 @@ const AppError = require('../utils/AppError');
 const prismaPaginate = require('../utils/prismaPaginate');
 const { isUuid } = require('../utils/ids');
 const { formatClient } = require('../utils/legacyApiShape');
+const {
+  bustCompanyCache,
+  getClientsListCached,
+  getCalendarCached,
+} = require('./tenantCacheService');
 
 async function listClients(companyId, query) {
+  return getClientsListCached(companyId, query, () => loadClients(companyId, query));
+}
+
+async function loadClients(companyId, query) {
   const { data, pagination } = await prismaPaginate(
     prisma,
     'client',
@@ -39,8 +48,11 @@ async function createClient(companyId, data) {
       serviceExpiryDate: data.service_expiry_date ? new Date(data.service_expiry_date) : null,
       quickbooks: data.quickbooks,
       requiredSupplies: data.required_supplies ?? [],
+      pricingDiscountPercent: data.pricing_discount_percent ?? null,
+      pricingDiscountNotes: data.pricing_discount_notes?.trim() || null,
     },
   });
+  bustCompanyCache(companyId);
   return formatClient(client);
 }
 
@@ -57,6 +69,14 @@ async function updateClient(companyId, clientId, data) {
   }
   if (data.quickbooks !== undefined) patch.quickbooks = data.quickbooks;
   if (data.required_supplies !== undefined) patch.requiredSupplies = data.required_supplies;
+  if (data.pricing_discount_percent !== undefined) {
+    patch.pricingDiscountPercent =
+      data.pricing_discount_percent == null ? null : Number(data.pricing_discount_percent);
+  }
+  if (data.pricing_discount_notes !== undefined) {
+    const notes = data.pricing_discount_notes;
+    patch.pricingDiscountNotes = notes == null || String(notes).trim() === '' ? null : String(notes).trim();
+  }
 
   const existing = await prisma.client.findFirst({
     where: { id: String(clientId), companyId: String(companyId) },
@@ -68,6 +88,7 @@ async function updateClient(companyId, clientId, data) {
     where: { id: String(clientId) },
     data: patch,
   });
+  bustCompanyCache(companyId);
   return formatClient(client);
 }
 
@@ -78,9 +99,14 @@ async function deleteClient(companyId, clientId) {
   if (r.count === 0) {
     throw new AppError('Client not found', 404);
   }
+  bustCompanyCache(companyId);
 }
 
 async function listCalendarEvents(companyId) {
+  return getCalendarCached(companyId, () => loadCalendarEvents(companyId));
+}
+
+async function loadCalendarEvents(companyId) {
   const clients = await prisma.client.findMany({
     where: { companyId: String(companyId) },
     select: { id: true, name: true, serviceStartDate: true, serviceExpiryDate: true },

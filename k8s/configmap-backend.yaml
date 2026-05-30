@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inventory-api-config
+  namespace: inventory-app
+data:
+  NODE_ENV: production
+  PORT: "5000"
+  METRICS_ENABLED: "true"
+  # Comma-separated browser origins (app + marketing hosts)
+  FRONTEND_URL: "https://app.example.com"
+  MARKETING_URL: "https://www.example.com"
+  ALLOW_PUBLIC_REGISTRATION: "true"
+  RATE_LIMIT_MAX: "200"
+  TENANT_CACHE_TTL_MS: "30000"
+  DASHBOARD_CACHE_TTL_MS: "20000"
+  # Set REDIS_URL in Secret when running multiple API replicas (e.g. redis://inventory-redis:6379)
+  # REDIS_URL: ""

@@ -132,7 +132,7 @@ async function processSupplyImportJob(jobId) {
 
   const items = job.rows.map((r) => r.payload);
   try {
-    const { created } = await supplyService.bulkCreateSupplies(job.companyId, items);
+    const { created, updated } = await supplyService.bulkCreateSupplies(job.companyId, items);
     await prisma.$transaction([
       prisma.supplyImportRow.updateMany({
         where: { jobId: jid },
@@ -142,7 +142,7 @@ async function processSupplyImportJob(jobId) {
         where: { id: jid },
         data: {
           status: 'completed',
-          result: { created },
+          result: { created, updated: updated ?? 0 },
           errorMessage: null,
         },
       }),

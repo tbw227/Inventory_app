@@ -4,6 +4,7 @@ const AppError = require('../utils/AppError');
 const jobService = require('./jobService');
 const { onPaymentCompleted } = require('./quickbooksService');
 const subscriptionService = require('./subscriptionService');
+const { isDemoRevenueEnabled, buildDemoProfileRevenue } = require('../lib/demoRevenue');
 
 async function createPaymentIntent(companyId, jobId, userId, amount, currency = 'usd', role = 'technician') {
   const job = await prisma.job.findFirst({
@@ -168,6 +169,62 @@ async function getRevenueStats(companyId) {
   };
 }
 
+function parseProfileRevenueDays(daysParam) {
+  if (daysParam === undefined || daysParam === null || daysParam === '' || daysParam === 'all') {
+    return null;
+  }
+  const n = Number(daysParam);
+  if (n === 30 || n === 90) return n;
+  throw new AppError('days must be 30, 90, or omitted for all time', 400);
+}
+
+function revenueSinceDate(days) {
+  if (!days) return null;
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  since.setHours(0, 0, 0, 0);
+  return since;
+}
+
+async function getProfileRevenue(companyId, subjectUserId, { days } = {}) {
+  const cid = String(companyId);
+  const uid = String(subjectUserId);
+  const since = revenueSinceDate(days);
+  const baseWhere = {
+    companyId: cid,
+    status: 'completed',
+    ...(since ? { createdAt: { gte: since } } : {}),
+  };
+
+  const [shopAgg, techAgg] = await Promise.all([
+    prisma.payment.aggregate({
+      where: baseWhere,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.payment.aggregate({
+      where: { ...baseWhere, technicianId: uid },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const shop_revenue = Number(shopAgg._sum.amount ?? 0);
+  const tech_revenue = Number(techAgg._sum.amount ?? 0);
+
+  if (isDemoRevenueEnabled() && shop_revenue < 1 && tech_revenue < 1) {
+    return { ...buildDemoProfileRevenue('admin'), days: days ?? null };
+  }
+
+  return {
+    shop_revenue,
+    tech_revenue,
+    payment_count_shop: shopAgg._count._all,
+    payment_count_tech: techAgg._count._all,
+    days: days ?? null,
+  };
+}
+
 async function getRevenueByJob(companyId) {
   const cid = String(companyId);
   const rows = await prisma.$queryRaw`
@@ -201,4 +258,6 @@ module.exports = {
   listPaymentsByJob,
   getRevenueStats,
   getRevenueByJob,
+  parseProfileRevenueDays,
+  getProfileRevenue,
 };

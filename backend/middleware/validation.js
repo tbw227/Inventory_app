@@ -42,6 +42,13 @@ const stationInventoryItem = Joi.object({
 });
 
 const schemas = {
+  register: Joi.object({
+    companyName: Joi.string().trim().min(2).max(120).required(),
+    name: Joi.string().trim().min(2).max(100).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().min(8).max(128).required(),
+  }),
+
   login: Joi.object({
     email: Joi.string().email().required(),
     password: Joi.string().min(1).required(),
@@ -134,6 +141,8 @@ const schemas = {
     service_expiry_date: Joi.date().allow(null).optional(),
     quickbooks: clientQuickbooks,
     required_supplies: Joi.array().items(supplyItem).optional(),
+    pricing_discount_percent: Joi.number().integer().min(0).max(100).allow(null).optional(),
+    pricing_discount_notes: Joi.string().max(500).allow('', null).optional(),
   }),
 
   updateClient: Joi.object({
@@ -144,6 +153,8 @@ const schemas = {
     service_expiry_date: Joi.date().allow(null).optional(),
     quickbooks: clientQuickbooks,
     required_supplies: Joi.array().items(supplyItem).optional(),
+    pricing_discount_percent: Joi.number().integer().min(0).max(100).allow(null).optional(),
+    pricing_discount_notes: Joi.string().max(500).allow('', null).optional(),
   }).min(1),
 
   createLocation: Joi.object({
@@ -161,6 +172,10 @@ const schemas = {
     location_code: Joi.string().allow('').max(50).optional(),
     station_inventory: Joi.array().items(stationInventoryItem).optional(),
   }).min(1),
+
+  updateVehicleInventory: Joi.object({
+    vehicle_inventory: Joi.array().items(stationInventoryItem).required(),
+  }),
 
   createJob: Joi.object({
     client_id: uuid.required(),

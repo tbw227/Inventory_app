@@ -39,6 +39,11 @@ enum SubscriptionStatus {
   incomplete
 }
 
+enum TransactionType {
+  income
+  expense
+}
+
 enum SupplyImportJobStatus {
   pending
   processing
@@ -76,8 +81,11 @@ model Company {
   jobs     Job[]
   payments Payment[]
 
-  supplyImportJobs      SupplyImportJob[]
-  quickBooksConnection  QuickBooksConnection?
+  supplyImportJobs          SupplyImportJob[]
+  quickBooksConnection      QuickBooksConnection?
+  financialAccounts         FinancialAccount[]
+  taxCategories             TaxCategory[]
+  financialTransactions     FinancialTransaction[]
 
   @@map("companies")
 }
@@ -99,6 +107,7 @@ model User {
   passwordResetTokenHash String?   @map("password_reset_token_hash")
   passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
   preferences            Json      @default("{}")
+  vehicleInventory       Json      @default("[]") @map("vehicle_inventory")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
@@ -118,8 +127,11 @@ model Client {
   contactInfo       String?   @map("contact_info")
   serviceStartDate  DateTime? @map("service_start_date")
   serviceExpiryDate DateTime? @map("service_expiry_date")
-  quickbooks        Json?
-  requiredSupplies  Json      @default("[]") @map("required_supplies")
+  quickbooks               Json?
+  requiredSupplies         Json      @default("[]") @map("required_supplies")
+  /** Percent off catalog list prices for this client (0–100). Null = standard pricing. */
+  pricingDiscountPercent   Int?      @map("pricing_discount_percent")
+  pricingDiscountNotes     String?   @map("pricing_discount_notes") @db.VarChar(500)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -267,6 +279,68 @@ model JobLocation {
 
   @@id([jobId, locationId])
   @@map("job_locations")
+}
+
+model FinancialAccount {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(200)
+  accountType String   @map("account_type") @db.VarChar(80)
+  qboId       String?  @map("qbo_id") @db.VarChar(64)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  transactions FinancialTransaction[]
+
+  @@unique([companyId, qboId], map: "financial_accounts_company_qbo_uniq")
+  @@index([companyId], map: "financial_accounts_company_id_idx")
+  @@map("financial_accounts")
+}
+
+model TaxCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(200)
+  irsCode     String?  @map("irs_code") @db.VarChar(40)
+  description String   @default("") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  transactions FinancialTransaction[]
+
+  @@index([companyId], map: "tax_categories_company_id_idx")
+  @@map("tax_categories")
+}
+
+model FinancialTransaction {
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type           TransactionType
+  date           DateTime        @db.Date
+  amount         Decimal         @db.Decimal(12, 2)
+  description    String          @default("") @db.Text
+  vendor         String          @default("") @db.VarChar(200)
+  accountId      String?         @map("account_id") @db.Uuid
+  account        FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  taxCategoryId  String?         @map("tax_category_id") @db.Uuid
+  taxCategory    TaxCategory?    @relation(fields: [taxCategoryId], references: [id], onDelete: SetNull)
+  taxDeductible  Boolean         @default(false) @map("tax_deductible")
+  receiptUrl     String?         @map("receipt_url") @db.Text
+  qboId          String?         @map("qbo_id") @db.VarChar(64)
+  qboType        String?         @map("qbo_type") @db.VarChar(40)
+  paymentId      String?         @map("payment_id") @db.Uuid
+  notes          String          @default("") @db.Text
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  @@index([companyId, type, date], map: "fin_txns_company_type_date_idx")
+  @@index([companyId, taxCategoryId], map: "fin_txns_company_tax_cat_idx")
+  @@unique([companyId, qboId, qboType], map: "fin_txns_company_qbo_uniq")
+  @@map("financial_transactions")
 }
 
 model Payment {

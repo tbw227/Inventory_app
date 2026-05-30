@@ -1,9 +1,24 @@
+/**
+ * Location (station) service — CRUD for client site locations.
+ *
+ * Each location belongs to a client and holds a stationInventory JSON array
+ * (fire extinguishers, first aid supplies, etc.). The station detail page
+ * and QR scan flow read/update this data.
+ *
+ * getLocationByCode is used by the QR scan → station detail route
+ * (e.g. STN:KC-ARROWHEAD → GET /locations/by-code/KC-ARROWHEAD).
+ */
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/AppError');
 const prismaPaginate = require('../utils/prismaPaginate');
 const { formatLocation } = require('../utils/legacyApiShape');
+const { bustCompanyCache, getLocationsListCached } = require('./tenantCacheService');
 
 async function listLocations(companyId, clientId, query) {
+  return getLocationsListCached(companyId, clientId, query, () => loadLocations(companyId, clientId, query));
+}
+
+async function loadLocations(companyId, clientId, query) {
   const filter = { companyId: String(companyId) };
   if (clientId) {
     filter.clientId = String(clientId);
@@ -51,6 +66,7 @@ async function createLocation(companyId, data) {
     },
     include: { client: { select: { id: true, name: true, location: true } } },
   });
+  bustCompanyCache(companyId);
   return formatLocation(location, { nestClient: true });
 }
 
@@ -73,6 +89,7 @@ async function updateLocation(companyId, locationId, data) {
     data: patch,
     include: { client: { select: { id: true, name: true, location: true } } },
   });
+  bustCompanyCache(companyId);
   return formatLocation(location, { nestClient: true });
 }
 
@@ -83,6 +100,20 @@ async function deleteLocation(companyId, locationId) {
   if (r.count === 0) {
     throw new AppError('Location not found', 404);
   }
+  bustCompanyCache(companyId);
 }
 
-module.exports = { listLocations, getLocation, createLocation, updateLocation, deleteLocation };
+async function getLocationByCode(companyId, code) {
+  const location = await prisma.location.findFirst({
+    where: { companyId: String(companyId), locationCode: String(code) },
+    include: {
+      client: { select: { id: true, name: true, location: true, contactInfo: true } },
+    },
+  });
+  if (!location) {
+    throw new AppError('Location not found for that code', 404);
+  }
+  return formatLocation(location, { nestClient: true });
+}
+
+module.exports = { listLocations, getLocation, getLocationByCode, createLocation, updateLocation, deleteLocation };

@@ -250,8 +250,8 @@ function TeamFieldCombinedChart({ technicianInventory, t }) {
   const barSize = techList.length > 8 ? 8 : techList.length > 5 ? 11 : 14
 
   return (
-    <div className="mb-8 min-w-0">
-      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Team field inventory — all technicians</p>
+    <div className="mb-4 min-w-0">
+      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Vehicle stock — all technicians</p>
       <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 max-w-3xl">
         Top {rows.length} supplies by total planned units across the team. Each colored bar is a technician; compare who
         has what allocated on active jobs.
@@ -407,7 +407,7 @@ export default function InventoryAnalyticsCharts({ analytics, viewerRole = 'admi
     return (
       <div className="min-w-0 space-y-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Your field inventory
+          Your vehicle stock
         </p>
         <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-2xl">
           Planned supply quantities on your <span className="font-medium text-slate-600 dark:text-slate-300">pending</span>{' '}
@@ -435,222 +435,233 @@ export default function InventoryAnalyticsCharts({ analytics, viewerRole = 'admi
     )
   }
 
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-w-0">
-      {hasWarehouseSkus ? (
-        <>
-      <div className="lg:col-span-2 flex flex-col min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
-          Stock status
-        </p>
-        <p className="text-2xl font-bold text-slate-900 dark:text-white">
-          {totalSkus} <span className="text-sm font-normal text-slate-500">items (SKUs)</span>
-        </p>
-        <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">
-          {totalUnits.toLocaleString()} units on hand
-        </p>
-        {totalUnits === 0 ? (
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-            Tip: update <span className="font-medium">Quantity on hand</span> on the Supplies page to reflect warehouse stock.
-          </p>
-        ) : (
-          <div className="mb-3" />
-        )}
-        <div className="h-[220px] w-full min-w-0 flex-1 min-h-[200px]">
-          {pieData.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-xs text-slate-500 border border-dashed rounded-xl">
-              No status breakdown
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220} minWidth={0}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={52}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  strokeWidth={2}
-                  stroke={t.tooltipBg}
-                >
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip content={<InvTooltip t={t} />} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        <ul className="flex flex-wrap gap-3 text-xs mt-2">
-          {pieData.map((p) => (
-            <li key={p.key} className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.fill }} />
-              <span className="text-slate-600 dark:text-slate-300">
-                {p.name}: <strong>{p.value}</strong>
-              </span>
+  const technicianFieldPanel = hasTechnicianSection ? (
+    <div className="min-w-0 flex flex-col h-full">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+        Technician vehicle stock
+      </p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+        Planned quantities on{' '}
+        <span className="font-medium text-slate-600 dark:text-slate-300">pending</span> /{' '}
+        <span className="font-medium text-slate-600 dark:text-slate-300">in-progress</span> jobs. The team chart
+        compares every technician on the same supplies; individual cards show each tech in detail.
+      </p>
+      <TeamFieldCombinedChart technicianInventory={technicianInventory} t={t} />
+      <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-2">By technician</p>
+      <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs mb-4">
+        {technicianInventory.map((tech, idx) => {
+          const c = TECHNICIAN_COLORS[idx % TECHNICIAN_COLORS.length]
+          return (
+            <li key={String(tech.user_id)} className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c }} />
+              <Link
+                to={`/users/${tech.user_id}`}
+                className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+              >
+                {tech.name}
+              </Link>
             </li>
-          ))}
-        </ul>
+          )
+        })}
+      </ul>
+      <div className="grid grid-cols-1 gap-4 min-w-0 flex-1">
+        {technicianInventory.map((tech, idx) => (
+          <TechnicianShopStyleChart
+            key={String(tech.user_id)}
+            tech={tech}
+            techColor={TECHNICIAN_COLORS[idx % TECHNICIAN_COLORS.length]}
+            t={t}
+          />
+        ))}
       </div>
+    </div>
+  ) : null
 
-      <div className="lg:col-span-3 min-h-[280px] min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
-          Warehouse vs tech field (top items)
-        </p>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
-          Grouped bars: warehouse on hand and planned quantities on technician{' '}
-          <span className="font-medium text-slate-600 dark:text-slate-300">pending</span> /{' '}
-          <span className="font-medium text-slate-600 dark:text-slate-300">in-progress</span> jobs (matched by supply
-          name).{' '}
-          {totalTechPlanned > 0 && (
-            <span className="tabular-nums">
-              Total planned on tech jobs: <strong>{totalTechPlanned.toLocaleString()}</strong> units.
-            </span>
-          )}
-        </p>
-        <div className="h-[320px] w-full min-w-0">
-          <ResponsiveContainer width="100%" height={320} minWidth={0}>
-            <BarChart
-              data={barData}
-              layout="vertical"
-              margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
-              barCategoryGap={8}
-            >
-              <CartesianGrid strokeDasharray="3 6" stroke={t.grid} horizontal={false} />
-              <XAxis type="number" tick={{ fill: t.tick, fontSize: t.fontSize }} tickLine={false} axisLine={false} />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={100}
-                tick={{ fill: t.tick, fontSize: t.fontSize }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip content={<StockTooltip t={t} />} cursor={{ fill: t.dark ? 'rgba(148,163,184,0.06)' : 'rgba(15,23,42,0.03)' }} />
-              <Legend
-                wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
-                formatter={(value) => <span style={{ color: t.tick }}>{value}</span>}
-              />
-              <Bar dataKey="quantity_on_hand" name="Warehouse (on hand)" radius={[0, 4, 4, 0]} maxBarSize={20}>
-                {barData.map((row, i) => (
-                  <Cell key={`wh-${row.fullName || row.name}-${i}`} fill={row.barColor} />
-                ))}
-              </Bar>
-              <Bar
-                dataKey="quantity_planned_in_field"
-                name="Tech jobs (planned)"
-                fill={FIELD_PLANNED_COLOR}
-                radius={[0, 4, 4, 0]}
-                maxBarSize={20}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Always show the numbers side-by-side as a readable table. */}
-        {barData.length > 0 && (
-          <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-            <table className="min-w-[560px] w-full text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-900/40">
-                <tr className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <th className="px-3 py-2 text-left font-semibold">Item</th>
-                  <th className="px-3 py-2 text-right font-semibold">Warehouse (on hand)</th>
-                  <th className="px-3 py-2 text-right font-semibold">Tech jobs (planned)</th>
-                  <th className="px-3 py-2 text-right font-semibold">Reorder at</th>
+  const inventoryTableCard =
+    hasWarehouseSkus && barData.length > 0 ? (
+      <div className="min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 shadow-sm overflow-hidden h-full flex flex-col">
+        <div className="overflow-x-auto flex-1 min-h-0">
+          <table className="min-w-[480px] w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-900/40 sticky top-0 z-[1]">
+              <tr className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <th className="px-3 py-2 text-left font-semibold">Item</th>
+                <th className="px-3 py-2 text-right font-semibold">Warehouse (on hand)</th>
+                <th className="px-3 py-2 text-right font-semibold">Tech jobs (planned)</th>
+                <th className="px-3 py-2 text-right font-semibold">Reorder at</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              {barData.map((row) => (
+                <tr key={row.fullName || row.name} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                  <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                    <span className="font-medium">{row.fullName || row.name}</span>
+                    {row.health ? (
+                      <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {row.health}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                    {Number(row.quantity_on_hand) || 0}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-amber-700 dark:text-amber-300">
+                    {Number(row.quantity_planned_in_field) || 0}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                    {row.reorder_threshold ?? '—'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {barData.map((row) => (
-                  <tr key={row.fullName || row.name} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                    <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
-                      <span className="font-medium">{row.fullName || row.name}</span>
-                      {row.health ? (
-                        <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {row.health}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                      {Number(row.quantity_on_hand) || 0}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-amber-700 dark:text-amber-300">
-                      {Number(row.quantity_planned_in_field) || 0}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-600 dark:text-slate-300">
-                      {row.reorder_threshold ?? '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {hasTechnicianSection && (
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-            Per-technician breakdown below. Adjust reorder thresholds on the supplies page.
-          </p>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 px-3 py-2 border-t border-slate-200 dark:border-slate-700">
+          Adjust reorder thresholds on the Supplies page.
+        </p>
       </div>
-        </>
+    ) : null
+
+  return (
+    <div className="space-y-6 min-w-0">
+      {hasWarehouseSkus ? (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-w-0">
+          <div className="lg:col-span-2 flex flex-col min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
+              Stock status
+            </p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">
+              {totalSkus} <span className="text-sm font-normal text-slate-500">items (SKUs)</span>
+            </p>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">
+              {totalUnits.toLocaleString()} units on hand
+            </p>
+            {totalUnits === 0 ? (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                Tip: update <span className="font-medium">Quantity on hand</span> on the Supplies page to reflect
+                warehouse stock.
+              </p>
+            ) : (
+              <div className="mb-3" />
+            )}
+            <div className="h-[220px] w-full min-w-0 flex-1 min-h-[200px]">
+              {pieData.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-slate-500 border border-dashed rounded-xl">
+                  No status breakdown
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220} minWidth={0}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={52}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      strokeWidth={2}
+                      stroke={t.tooltipBg}
+                    >
+                      {pieData.map((entry, i) => (
+                        <Cell key={i} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<InvTooltip t={t} />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <ul className="flex flex-wrap gap-3 text-xs mt-2">
+              {pieData.map((p) => (
+                <li key={p.key} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: p.fill }} />
+                  <span className="text-slate-600 dark:text-slate-300">
+                    {p.name}: <strong>{p.value}</strong>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="lg:col-span-3 min-h-[280px] min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+              Warehouse vs tech field (top items)
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+              Grouped bars: warehouse on hand and planned quantities on technician{' '}
+              <span className="font-medium text-slate-600 dark:text-slate-300">pending</span> /{' '}
+              <span className="font-medium text-slate-600 dark:text-slate-300">in-progress</span> jobs (matched by supply
+              name).{' '}
+              {totalTechPlanned > 0 && (
+                <span className="tabular-nums">
+                  Total planned on tech jobs: <strong>{totalTechPlanned.toLocaleString()}</strong> units.
+                </span>
+              )}
+            </p>
+            <div className="h-[320px] w-full min-w-0">
+              <ResponsiveContainer width="100%" height={320} minWidth={0}>
+                <BarChart
+                  data={barData}
+                  layout="vertical"
+                  margin={{ top: 4, right: 16, left: 4, bottom: 4 }}
+                  barCategoryGap={8}
+                >
+                  <CartesianGrid strokeDasharray="3 6" stroke={t.grid} horizontal={false} />
+                  <XAxis type="number" tick={{ fill: t.tick, fontSize: t.fontSize }} tickLine={false} axisLine={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={100}
+                    tick={{ fill: t.tick, fontSize: t.fontSize }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    content={<StockTooltip t={t} />}
+                    cursor={{ fill: t.dark ? 'rgba(148,163,184,0.06)' : 'rgba(15,23,42,0.03)' }}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                    formatter={(value) => <span style={{ color: t.tick }}>{value}</span>}
+                  />
+                  <Bar dataKey="quantity_on_hand" name="Warehouse (on hand)" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                    {barData.map((row, i) => (
+                      <Cell key={`wh-${row.fullName || row.name}-${i}`} fill={row.barColor} />
+                    ))}
+                  </Bar>
+                  <Bar
+                    dataKey="quantity_planned_in_field"
+                    name="Tech jobs (planned)"
+                    fill={FIELD_PLANNED_COLOR}
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="lg:col-span-5 rounded-xl border border-dashed border-slate-200 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/20 py-8 px-4 text-center">
+        <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/20 py-8 px-4 text-center">
           <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No warehouse items yet</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto">
             Add supplies on the <span className="font-medium">Supplies</span> page to unlock stock health and warehouse
             vs field charts.
           </p>
-          {hasTechnicianSection && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 max-w-lg mx-auto">
-              Technician field inventory is shown below for planned items on active jobs.
-            </p>
-          )}
         </div>
       )}
 
-      {hasTechnicianSection && (
-        <div className="lg:col-span-5 mt-2 pt-6 border-t border-slate-200 dark:border-slate-700 min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
-            Technician field inventory
-          </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 max-w-3xl">
-            Planned quantities on{' '}
-            <span className="font-medium text-slate-600 dark:text-slate-300">pending</span> /{' '}
-            <span className="font-medium text-slate-600 dark:text-slate-300">in-progress</span> jobs. The team chart
-            below compares every technician on the same supplies; individual cards show each tech in detail.
-          </p>
-          <TeamFieldCombinedChart technicianInventory={technicianInventory} t={t} />
-          <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-2">By technician</p>
-          <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs mb-5">
-            {technicianInventory.map((tech, idx) => {
-              const c = TECHNICIAN_COLORS[idx % TECHNICIAN_COLORS.length]
-              return (
-                <li key={String(tech.user_id)} className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: c }} />
-                  <Link
-                    to={`/users/${tech.user_id}`}
-                    className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
-                  >
-                    {tech.name}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0">
-            {technicianInventory.map((tech, idx) => (
-              <TechnicianShopStyleChart
-                key={String(tech.user_id)}
-                tech={tech}
-                techColor={TECHNICIAN_COLORS[idx % TECHNICIAN_COLORS.length]}
-                t={t}
-              />
-            ))}
-          </div>
+      {(hasTechnicianSection || inventoryTableCard) && (
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 min-w-0 items-start pt-2 border-t border-slate-200 dark:border-slate-700">
+          {hasTechnicianSection && (
+            <div className="xl:col-span-5 min-w-0">{technicianFieldPanel}</div>
+          )}
+          {inventoryTableCard && (
+            <div className={hasTechnicianSection ? 'xl:col-span-7 min-w-0' : 'xl:col-span-12 min-w-0'}>
+              {inventoryTableCard}
+            </div>
+          )}
         </div>
       )}
     </div>

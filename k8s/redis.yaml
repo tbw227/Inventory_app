@@ -1,0 +1,60 @@
+# Optional — enable shared tenant cache when running 2+ API replicas.
+# Set REDIS_URL=redis://inventory-redis:6379 in inventory-api-secrets after applying.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-redis
+  namespace: inventory-app
+  labels:
+    app.kubernetes.io/name: inventory-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inventory-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: inventory-redis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-redis
+  namespace: inventory-app
+spec:
+  selector:
+    app.kubernetes.io/name: inventory-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

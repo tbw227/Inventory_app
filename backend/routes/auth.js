@@ -3,6 +3,14 @@ const rateLimit = require('express-rate-limit');
 const { authenticate } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
 const authController = require('../controllers/authController');
+const { isPublicRegistrationAllowed } = require('../config/security');
+
+function requirePublicRegistrationEnabled(req, res, next) {
+  if (!isPublicRegistrationAllowed()) {
+    return res.status(403).json({ error: 'Public registration is disabled' });
+  }
+  return next();
+}
 
 const router = express.Router();
 
@@ -24,6 +32,13 @@ const passwordResetLimiter = rateLimit({
   skipSuccessfulRequests: false,
 });
 
+router.post(
+  '/register',
+  requirePublicRegistrationEnabled,
+  loginLimiter,
+  validate(schemas.register),
+  authController.register
+);
 router.post('/login', loginLimiter, validate(schemas.login), authController.login);
 router.post('/forgot-password', passwordResetLimiter, validate(schemas.forgotPassword), authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, validate(schemas.resetPassword), authController.resetPassword);

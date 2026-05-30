@@ -3,11 +3,32 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import ProfileCard, { profileActionClass } from '../components/profile/ProfileCard'
+import VehicleInventoryEditor from '../components/inventory/VehicleInventoryEditor'
+import { useProfileRevenue } from '../hooks/useProfileRevenue'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_RE = /^[+\d][\d\s()./-]*$/
+
+function safeMailto(email) {
+  return EMAIL_RE.test(email) ? `mailto:${email}` : null
+}
+
+function safeTel(phone) {
+  return PHONE_RE.test(phone) ? `tel:${phone}` : null
+}
 
 export default function UserDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
+  const {
+    revenueDays,
+    setRevenueDays,
+    shopRevenue,
+    techRevenue,
+    revenueLoading,
+    revenueError,
+  } = useProfileRevenue(id)
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -133,6 +154,11 @@ export default function UserDetail() {
         ← Back
       </button>
 
+      {revenueError && (
+        <div className="mb-6 rounded-2xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          {revenueError}
+        </div>
+      )}
       {saveError && (
         <div className="mb-6 rounded-2xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
           {saveError}
@@ -151,6 +177,11 @@ export default function UserDetail() {
         skills={skills}
         email={member.email}
         phone={member.phone || ''}
+        shopRevenue={shopRevenue}
+        techRevenue={techRevenue}
+        revenueDays={revenueDays}
+        onRevenueDaysChange={setRevenueDays}
+        revenueLoading={revenueLoading}
         avatarActions={avatarActions}
         socialExtra={
           <Link to="/users" title="Team" aria-label="Team list">
@@ -169,12 +200,18 @@ export default function UserDetail() {
               <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 Email
               </p>
-              <a
-                href={`mailto:${member.email}`}
-                className="mt-2 block truncate text-sm font-medium text-teal-700 hover:text-teal-600 dark:text-teal-400 dark:hover:text-teal-300"
-              >
-                {member.email}
-              </a>
+              {safeMailto(member.email) ? (
+                <a
+                  href={safeMailto(member.email)}
+                  className="mt-2 block truncate text-sm font-medium text-teal-700 hover:text-teal-600 dark:text-teal-400 dark:hover:text-teal-300"
+                >
+                  {member.email}
+                </a>
+              ) : (
+                <span className="mt-2 block truncate text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {member.email}
+                </span>
+              )}
             </div>
             <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white/60 px-4 py-4 dark:border-slate-700/80 dark:from-slate-800/50 dark:to-slate-900/40">
               <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -190,11 +227,13 @@ export default function UserDetail() {
         }
         headerActions={
           <>
-            <a href={`mailto:${member.email}`} className={profileActionClass('primary')}>
-              Email
-            </a>
-            {member.phone ? (
-              <a href={`tel:${member.phone}`} className={profileActionClass('secondary')}>
+            {safeMailto(member.email) ? (
+              <a href={safeMailto(member.email)} className={profileActionClass('primary')}>
+                Email
+              </a>
+            ) : null}
+            {safeTel(member.phone) ? (
+              <a href={safeTel(member.phone)} className={profileActionClass('secondary')}>
                 Call
               </a>
             ) : null}
@@ -209,6 +248,16 @@ export default function UserDetail() {
           </>
         }
       />
+
+      {member.role === 'technician' && (
+        <div className="mt-8">
+          <VehicleInventoryEditor
+            userId={member._id}
+            initialItems={member.vehicle_inventory}
+            onSaved={(updated) => setMember(updated)}
+          />
+        </div>
+      )}
     </div>
   )
 }

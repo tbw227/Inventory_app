@@ -64,6 +64,8 @@ describe('GET /api/supplies/overview', () => {
     expect(res.body.totals).toMatchObject({
       shop_skus: expect.any(Number),
       shop_units: expect.any(Number),
+      shop_healthy_skus: expect.any(Number),
+      shop_low_stock_skus: expect.any(Number),
       client_station_lines: expect.any(Number),
       client_fire_extinguisher_units: expect.any(Number),
     });

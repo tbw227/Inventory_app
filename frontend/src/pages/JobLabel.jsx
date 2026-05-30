@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import JsBarcode from 'jsbarcode'
+import { QRCodeSVG } from 'qrcode.react'
 import { useJob } from '../hooks/useJob'
 import { getJobLocations } from '../utils/jobLocations'
 import HomeNavLink from '../components/shared/HomeNavLink'
@@ -8,23 +8,10 @@ import HomeNavLink from '../components/shared/HomeNavLink'
 export default function JobLabel() {
   const { id } = useParams()
   const { job, loading, error } = useJob(id)
-  const barcodeRef = useRef(null)
   const shouldPrint = useMemo(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('print') === '1'
   }, [])
-
-  useEffect(() => {
-    if (!job || !barcodeRef.current) return
-
-    barcodeRef.current.innerHTML = ''
-    JsBarcode(barcodeRef.current, `job_${job._id}`, {
-      format: 'CODE128',
-      width: 2,
-      height: 48,
-      displayValue: true,
-    })
-  }, [job])
 
   useEffect(() => {
     if (!job) return
@@ -141,8 +128,11 @@ export default function JobLabel() {
         )}
 
         <div className="mt-5 flex justify-center">
-          <svg ref={barcodeRef} />
+          <QRCodeSVG value={`job_${job._id}`} size={128} level="M" />
         </div>
+        <p className="mt-1 text-center text-[10px] font-mono text-gray-500 break-all">
+          job_{job._id}
+        </p>
       </div>
 
       <style>{`

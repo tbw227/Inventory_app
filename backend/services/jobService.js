@@ -1,3 +1,18 @@
+/**
+ * Job service — CRUD, completion workflow, and field inventory tracking for jobs.
+ *
+ * Key operations:
+ *   listJobs       – paginated list scoped to company (+ user for technicians)
+ *   getJob         – single job with client, location, and user details
+ *   createJob      – create with planned supplies + linked locations
+ *   updateJob      – edit fields, status, planned supplies, billing amount
+ *   completeJob    – mark done, deduct supplies from warehouse, generate PDF
+ *                    report, and email it to the client
+ *   addInventoryUsed – merge supply usage onto an active job (field workflow)
+ *
+ * Supply deduction on completion uses a Prisma transaction: if any supply has
+ * insufficient stock, the entire completion rolls back (no partial deductions).
+ */
 const prisma = require('../lib/prisma');
 const generateServiceReportPdf = require('./pdfService');
 const sendReportEmail = require('./emailService');
@@ -7,6 +22,7 @@ const {
   formatLocation,
   formatUserShort,
 } = require('../utils/legacyApiShape');
+const { bustCompanyCache, getJobsListCached } = require('./tenantCacheService');
 
 const jobIncludeList = {
   client: {
@@ -169,6 +185,10 @@ function prismaCreateData(companyId, body) {
 }
 
 async function listJobs(companyId, role, userId, query) {
+  return getJobsListCached(companyId, role, userId, query, () => loadJobs(companyId, role, userId, query));
+}
+
+async function loadJobs(companyId, role, userId, query) {
   const filter = { companyId: String(companyId) };
   if (role === 'technician') {
     filter.assignedUserId = String(userId);
@@ -209,6 +229,7 @@ async function createJob(companyId, data) {
     data: payload,
     include: jobIncludeList,
   });
+  bustCompanyCache(companyId);
   return formatJob(job);
 }
 
@@ -259,6 +280,7 @@ async function updateJob(companyId, jobId, data) {
     where: { id: String(jobId) },
     include: jobIncludeList,
   });
+  bustCompanyCache(companyId);
   return formatJob(job);
 }
 
@@ -326,6 +348,7 @@ async function completeJob(companyId, jobId, role, userId, data) {
     console.error('Report email failed:', err.message)
   );
 
+  bustCompanyCache(companyId);
   return formatJob(listed);
 }
 
@@ -382,6 +405,7 @@ async function addInventoryUsed(companyId, jobId, role, userId, data) {
     include: jobIncludeList,
   })
 
+  bustCompanyCache(companyId);
   return formatJob(updated)
 }
 
