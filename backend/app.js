@@ -18,6 +18,7 @@
  *  13. 404 handler → Sentry → global error handler
  *
  * This module exports the app (no listen call). server.js handles startup.
+ * Deploy marker: 2026-06-09 — re-trigger Railway build from main.
  */
 const express = require('express');
 const cors = require('cors');
