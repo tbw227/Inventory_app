@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import Papa from 'papaparse'
 import api, { getApiErrorMessage } from '../services/api'
+import { parseSupplyImportFile, SUPPLY_IMPORT_ACCEPT } from '../utils/parseSupplyImportFile'
 import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime } from '../utils/formatDate'
 import InventoryOverviewCharts from '../components/inventory/InventoryOverviewCharts'
@@ -196,21 +196,20 @@ export default function Supplies() {
     setImportOpen(true)
   }
 
-  function onCsvSelected(e) {
+  async function onImportFileSelected(e) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
     setImportFileName(file.name)
     setImportErr(null)
-    const reader = new FileReader()
-    reader.onload = () => {
-      const text = String(reader.result || '')
-      const { data, errors } = Papa.parse(text, { skipEmptyLines: 'greedy' })
-      if (errors?.length) {
-        setImportErr(errors.map((x) => x.message).join('; ') || 'Could not parse CSV')
+    setImportMsg(null)
+    try {
+      const { rows, warnings, error } = await parseSupplyImportFile(file)
+      if (error) {
+        setImportErr(error)
         return
       }
-      const rows = (data || []).filter((r) => Array.isArray(r) && r.some((c) => String(c ?? '').trim() !== ''))
+      setImportMsg(warnings.length ? warnings[0] : null)
       setParsedRows(rows)
       setColumnMapping(defaultMapping())
       setPreviewResult(null)
@@ -246,8 +245,9 @@ export default function Supplies() {
         next.unit_price = pick(['unit price', 'price', 'cost', 'rate'])
         setColumnMapping(next)
       }
+    } catch (err) {
+      setImportErr(err?.message || 'Could not read file')
     }
-    reader.readAsText(file)
   }
 
   async function runPreview() {
@@ -609,7 +609,7 @@ export default function Supplies() {
               onClick={openImport}
               className="text-sm border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-gray-100 px-4 py-2 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
             >
-              Import CSV
+              Import spreadsheet
             </button>
             <button
               type="button"
@@ -705,7 +705,7 @@ export default function Supplies() {
           <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
             <div className="flex justify-between items-start gap-2">
               <h2 id="import-dialog-title" className="text-lg font-semibold text-gray-900 dark:text-white">
-                Import shop supplies (CSV)
+                Import shop supplies
               </h2>
               <button
                 type="button"
@@ -716,12 +716,22 @@ export default function Supplies() {
               </button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Upload a CSV, map columns, preview validation, then commit. Rows are scoped to your organization on the
-              server.
+              Upload a spreadsheet or delimited file (CSV, TSV, TXT, Excel, ODS), map columns, preview validation, then
+              commit. Rows are scoped to your organization on the server.
             </p>
             <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">CSV file</label>
-              <input type="file" accept=".csv,text/csv" onChange={onCsvSelected} className="text-sm w-full" />
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+                Spreadsheet or data file
+              </label>
+              <input
+                type="file"
+                accept={SUPPLY_IMPORT_ACCEPT}
+                onChange={onImportFileSelected}
+                className="text-sm w-full"
+              />
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                CSV, TSV, TXT, Excel (.xlsx, .xls), or OpenDocument (.ods)
+              </p>
               {importFileName && (
                 <p className="text-xs text-gray-500 mt-1">
                   Selected: <span className="font-medium">{importFileName}</span> · {parsedRows.length} row
