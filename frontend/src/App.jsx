@@ -3,11 +3,13 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import { ROUTES } from './config/routes'
+import { PUBLIC_REGISTRATION_ENABLED } from './config/security'
 import { Toaster } from 'react-hot-toast'
 
 const Layout = lazy(() => import('./components/layout/Layout'))
 const Login = lazy(() => import('./pages/Login'))
 const RedirectToMarketingSignup = lazy(() => import('./components/auth/RedirectToMarketingSignup'))
+const Register = lazy(() => import('./pages/Register'))
 const AuthHandoff = lazy(() => import('./pages/AuthHandoff'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
@@ -53,7 +55,10 @@ export default function App() {
       <Suspense fallback={<RouteFallback />}>
         <Toaster position="bottom-center" />
         <Routes>
-          <Route path={ROUTES.REGISTER} element={<RedirectToMarketingSignup />} />
+          <Route
+            path={ROUTES.REGISTER}
+            element={PUBLIC_REGISTRATION_ENABLED ? <Register /> : <RedirectToMarketingSignup />}
+          />
           <Route path={ROUTES.LOGIN} element={<Login />} />
           <Route path={ROUTES.AUTH_HANDOFF} element={<AuthHandoff />} />
           <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />

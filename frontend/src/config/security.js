@@ -5,3 +5,6 @@
 export const PUBLIC_REGISTRATION_ENABLED =
   import.meta.env.VITE_ALLOW_PUBLIC_REGISTRATION === 'true' ||
   (import.meta.env.DEV && import.meta.env.VITE_ALLOW_PUBLIC_REGISTRATION !== 'false')
+
+/** @deprecated Use PUBLIC_REGISTRATION_ENABLED */
+export const isPublicRegistrationAllowed = PUBLIC_REGISTRATION_ENABLED

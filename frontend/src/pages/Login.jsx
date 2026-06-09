@@ -8,7 +8,8 @@ import api, {
 } from '../services/api'
 import { ROUTES } from '../config/routes'
 import { safeRedirect } from '../utils/safeRedirect'
-import { MARKETING_SITE_URL, MARKETING_SIGNUP_URL } from '../config/marketing'
+import { MARKETING_SITE_URL } from '../config/marketing'
+import { getSignupHref, isMarketingSiteConfigured, useInAppSignupLink } from '../config/signup'
 import BrandLogo from '../components/ui/BrandLogo'
 import { PRODUCT_NAME } from '../config/brand'
 
@@ -21,6 +22,8 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const apiInfo = getApiDeploymentInfo()
+  const signupHref = getSignupHref()
+  const inAppSignup = useInAppSignupLink()
 
   if (user) {
     return <Navigate to={safeRedirect(location.state?.from?.pathname, ROUTES.DASHBOARD)} replace />
@@ -138,11 +141,17 @@ export default function Login() {
           </button>
           <p className="text-center text-sm text-gray-500">
             Don&apos;t have an account?{' '}
-            <a href={MARKETING_SIGNUP_URL} className="text-blue-600 hover:text-blue-800 font-medium">
-              Create your company
-            </a>
+            {inAppSignup ? (
+              <Link to={signupHref} className="text-blue-600 hover:text-blue-800 font-medium">
+                Create your company
+              </Link>
+            ) : (
+              <a href={signupHref} className="text-blue-600 hover:text-blue-800 font-medium">
+                Create your company
+              </a>
+            )}
           </p>
-          {MARKETING_SITE_URL && (
+          {isMarketingSiteConfigured() && MARKETING_SITE_URL && (
             <p className="text-center text-xs text-gray-500 pt-1">
               <a href={MARKETING_SITE_URL} className="text-blue-600 hover:underline font-medium">
                 ← Back to website
