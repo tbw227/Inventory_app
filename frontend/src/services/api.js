@@ -28,7 +28,10 @@ function useSameOriginApiOnVercel() {
 export function resolveApiBaseURL() {
   if (useSameOriginApiOnVercel()) return API_VERSION_PREFIX
 
-  const raw = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '')
+  const raw = (import.meta.env.VITE_API_URL || '')
+    .trim()
+    .replace(/^VITE_API_URL=/i, '')
+    .replace(/\/$/, '')
   if (!raw) return API_VERSION_PREFIX
   if (/\/api\/v1$/i.test(raw)) return raw
   if (/\/api$/i.test(raw)) return `${raw}/v1`
@@ -38,7 +41,7 @@ export function resolveApiBaseURL() {
 /** For diagnostics (login page, support). */
 export function getApiDeploymentInfo() {
   const baseURL = resolveApiBaseURL()
-  const configuredOrigin = (import.meta.env.VITE_API_URL || '').trim()
+  const configuredOrigin = (import.meta.env.VITE_API_URL || '').trim().replace(/^VITE_API_URL=/i, '')
   return {
     baseURL,
     configuredOrigin,
