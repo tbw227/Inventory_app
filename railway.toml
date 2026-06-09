@@ -7,7 +7,7 @@ watchPatterns = ["backend/**"]
 
 [deploy]
 startCommand = "npm start"
-healthcheckPath = "/health/live"
+healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
