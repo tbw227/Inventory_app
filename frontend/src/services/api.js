@@ -75,6 +75,7 @@ function isAnonymousAuthRequest(url) {
 
 /** True when a production build has no backend origin (requests hit the static host → 404). */
 export function isApiMisconfiguredInProduction() {
+  if (useSameOriginApiOnVercel()) return false
   return import.meta.env.PROD && !(import.meta.env.VITE_API_URL || '').trim()
 }
 
