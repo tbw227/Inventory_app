@@ -31,6 +31,9 @@ const { isLanCorsAllowed, getConfiguredBrowserOrigins } = require('./config/secu
 
 const app = express();
 app.set('etag', 'weak');
+// Behind Railway/Vercel proxies, trust the first hop so express-rate-limit and
+// req.ip read the client address from X-Forwarded-For instead of erroring.
+app.set('trust proxy', 1);
 
 if (process.env.NODE_ENV === 'production') {
   const origins = getConfiguredBrowserOrigins();
