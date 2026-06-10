@@ -189,6 +189,13 @@ function buildImportCreateRow(companyId, it) {
   return { ...row, ...buildImportRowPatch(it) };
 }
 
+/** Marker for SKUs queued in this import batch (not a database id). */
+const IMPORT_BATCH_PENDING = '__import_batch_pending__';
+
+function isSupplyUuid(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id));
+}
+
 async function bulkCreateSupplies(companyId, items) {
   const cid = String(companyId);
   const normalized = (items || [])
@@ -215,14 +222,24 @@ async function bulkCreateSupplies(companyId, items) {
     const sku = extractBracketSku(it.name);
     const existingId = sku ? bySku.get(sku) : null;
     const patch = buildImportRowPatch(it);
-    if (existingId) {
+
+    if (existingId && existingId !== IMPORT_BATCH_PENDING && isSupplyUuid(existingId)) {
       if (Object.keys(patch).length === 0) continue;
       await prisma.supply.update({ where: { id: existingId }, data: patch });
       updated += 1;
       continue;
     }
+
+    if (existingId === IMPORT_BATCH_PENDING) {
+      const pendingRow = toCreate.find((row) => extractBracketSku(row.name) === sku);
+      if (pendingRow && Object.keys(patch).length) {
+        Object.assign(pendingRow, patch);
+      }
+      continue;
+    }
+
     toCreate.push(buildImportCreateRow(cid, it));
-    if (sku) bySku.set(sku, '__pending__');
+    if (sku) bySku.set(sku, IMPORT_BATCH_PENDING);
   }
 
   let created = 0;
