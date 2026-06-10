@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext'
 import api, {
   getApiDeploymentInfo,
   getApiErrorMessage,
-  isApiMisconfiguredInProduction,
 } from '../services/api'
 import { ROUTES } from '../config/routes'
 import { safeRedirect } from '../utils/safeRedirect'
@@ -23,6 +22,7 @@ export default function Login() {
   const { login, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const clerkAuth = isClerkEnabled()
   const apiInfo = getApiDeploymentInfo()
   const signupHref = getSignupHref()
   const inAppSignup = useInAppSignupLink()
@@ -45,6 +45,41 @@ export default function Login() {
     }
   }
 
+  if (clerkAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8 flex flex-col items-center">
+            <BrandLogo size="lg" showName nameClassName="text-blue-600" />
+            <p className="mt-3 text-sm text-gray-500">Sign in to {PRODUCT_NAME}</p>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+            <ClerkSignInPanel />
+          </div>
+          <p className="mt-4 text-center text-sm text-gray-500">
+            New company?{' '}
+            {inAppSignup ? (
+              <Link to={signupHref} className="text-blue-600 hover:text-blue-800 font-medium">
+                Create your company
+              </Link>
+            ) : (
+              <a href={signupHref} className="text-blue-600 hover:text-blue-800 font-medium">
+                Create your company
+              </a>
+            )}
+          </p>
+          {isMarketingSiteConfigured() && MARKETING_SITE_URL && (
+            <p className="text-center text-xs text-gray-500 pt-3">
+              <a href={MARKETING_SITE_URL} className="text-blue-600 hover:underline font-medium">
+                ← Back to website
+              </a>
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm">
@@ -52,17 +87,7 @@ export default function Login() {
           <BrandLogo size="lg" showName nameClassName="text-blue-600" />
           <p className="mt-3 text-sm text-gray-500">Sign in to {PRODUCT_NAME}</p>
         </div>
-        {isClerkEnabled() && (
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
-            <ClerkSignInPanel />
-          </div>
-        )}
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
-          {isClerkEnabled() && (
-            <p className="text-center text-xs font-medium uppercase tracking-wide text-gray-400">
-              Or sign in with email
-            </p>
-          )}
           {import.meta.env.PROD && (
             <div
               className={`rounded-md border px-3 py-2 text-xs ${

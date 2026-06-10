@@ -21,6 +21,10 @@ Deploy wiring: [`DEPLOY_API.md`](./DEPLOY_API.md), [`RAILWAY.md`](./RAILWAY.md).
 | `SUBSCRIPTION_ENFORCE` | `true` once Stripe billing is live |
 | `ALLOW_PUBLIC_REGISTRATION` | `true` only if marketing signup is intentional |
 | `ENABLE_API_DOCS` | `false` (Swagger off in prod unless you need it) |
+| `CLERK_SECRET_KEY` | Clerk **secret** key (when using Clerk auth) |
+| `CLERK_PUBLISHABLE_KEY` | Same **publishable** key as Vercel `VITE_CLERK_PUBLISHABLE_KEY` |
+
+When both Clerk keys are set, **password login/register are disabled** on the API. Existing users must sign in through Clerk using the **same email** — the API auto-links `clerk_user_id` on first sign-in.
 
 Optional but recommended:
 
@@ -44,6 +48,7 @@ GET https://YOUR-SERVICE.up.railway.app/health          → database: connected
 |----------|------------------|
 | `VITE_API_URL` | `https://YOUR-SERVICE.up.railway.app` (no `/api/v1`) |
 | `VITE_ALLOW_PUBLIC_REGISTRATION` | Match backend intent |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (enables Clerk-only sign-in UI) |
 | `VITE_STRIPE_PUBLIC_KEY` | `pk_live_…` when billing is live |
 
 **Redeploy** after any `VITE_*` change (build-time).

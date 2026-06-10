@@ -96,7 +96,7 @@ async function provisionClerkTenant(clerkUserId, { companyName, name }) {
   const { email, clerkUser } = await fetchClerkPrimaryEmail(clerkUserId);
   const emailTaken = await prisma.user.findUnique({ where: { email } });
   if (emailTaken) {
-    throw new AppError('An account with that email already exists. Sign in with email and password.', 409);
+    throw new AppError('An account with that email already exists. Sign in with Clerk to link it.', 409);
   }
 
   const displayName =

@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { authenticate } = require('../middleware/auth');
 const { requireClerkSession } = require('../middleware/clerkSession');
+const { rejectLegacyAuthWhenClerk } = require('../middleware/clerkLegacyAuth');
 const { validate, schemas } = require('../middleware/validation');
 const authController = require('../controllers/authController');
 const { isPublicRegistrationAllowed } = require('../config/security');
@@ -35,12 +36,19 @@ const passwordResetLimiter = rateLimit({
 
 router.post(
   '/register',
+  rejectLegacyAuthWhenClerk,
   requirePublicRegistrationEnabled,
   loginLimiter,
   validate(schemas.register),
   authController.register
 );
-router.post('/login', loginLimiter, validate(schemas.login), authController.login);
+router.post(
+  '/login',
+  rejectLegacyAuthWhenClerk,
+  loginLimiter,
+  validate(schemas.login),
+  authController.login
+);
 router.post(
   '/clerk/provision',
   loginLimiter,
@@ -48,8 +56,20 @@ router.post(
   validate(schemas.clerkProvision),
   authController.clerkProvision
 );
-router.post('/forgot-password', passwordResetLimiter, validate(schemas.forgotPassword), authController.forgotPassword);
-router.post('/reset-password', passwordResetLimiter, validate(schemas.resetPassword), authController.resetPassword);
+router.post(
+  '/forgot-password',
+  rejectLegacyAuthWhenClerk,
+  passwordResetLimiter,
+  validate(schemas.forgotPassword),
+  authController.forgotPassword
+);
+router.post(
+  '/reset-password',
+  rejectLegacyAuthWhenClerk,
+  passwordResetLimiter,
+  validate(schemas.resetPassword),
+  authController.resetPassword
+);
 router.get('/me', authenticate, authController.me);
 
 module.exports = router;

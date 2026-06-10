@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import api from '../services/api'
+import { ROUTES } from '../config/routes'
+import { isClerkEnabled } from '../config/clerk'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -32,6 +34,10 @@ export default function ForgotPassword() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (isClerkEnabled()) {
+    return <Navigate to={ROUTES.LOGIN} replace />
   }
 
   return (

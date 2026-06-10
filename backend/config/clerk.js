@@ -1,4 +1,4 @@
-/** True when Clerk API keys are set (hybrid auth enabled alongside legacy JWT). */
+/** True when Clerk API keys are set (Clerk-only auth; legacy JWT login is disabled). */
 function isClerkConfigured() {
   const secret = process.env.CLERK_SECRET_KEY;
   const publishable = process.env.CLERK_PUBLISHABLE_KEY;

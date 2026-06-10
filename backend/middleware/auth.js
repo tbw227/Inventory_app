@@ -104,6 +104,7 @@ async function authenticate(req, res, next) {
         if (req.user) return next();
         return undefined;
       }
+      return res.status(401).json({ error: 'Invalid or expired Clerk session' });
     }
 
     const jwtHandled = await authenticateWithJwt(req, res);

@@ -1,9 +1,9 @@
 /**
  * AuthContext — global authentication state for the SPA.
  *
- * Supports hybrid auth:
- *   - Legacy JWT (email/password → localStorage token)
- *   - Clerk session (Bearer from @clerk/clerk-react when VITE_CLERK_PUBLISHABLE_KEY is set)
+ * Auth modes:
+ *   - Clerk (when VITE_CLERK_PUBLISHABLE_KEY is set) — Bearer from @clerk/clerk-react
+ *   - Legacy JWT (local dev) — email/password → localStorage token
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import api from '../services/api'

@@ -1,4 +1,4 @@
--- Link Clerk identities to tenant users (hybrid auth alongside legacy JWT login).
+-- Link Clerk identities to tenant users (Clerk-only auth when API keys are set).
 
 ALTER TABLE "users" ADD COLUMN "clerk_user_id" TEXT;
 
