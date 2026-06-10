@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 
 let client = null;
 
@@ -17,6 +18,8 @@ function getSupabaseAdmin() {
   if (!client) {
     client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      // Node 20 has no native WebSocket; required by @supabase/supabase-js (Storage + Realtime).
+      realtime: { transport: WebSocket },
     });
   }
   return client;

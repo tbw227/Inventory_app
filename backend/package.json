@@ -41,7 +41,8 @@
     "stripe": "^22.0.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "ws": "^8.21.0"
   },
   "overrides": {
     "inflight": "npm:empty-npm-package@*",

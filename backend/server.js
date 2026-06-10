@@ -21,11 +21,14 @@ try {
 
 if (process.env.NODE_ENV !== 'test') {
   connectDB()
-    .then(() => ensurePhotosBucket())
     .then(() => {
-      const server = app.listen(PORT, HOST, () =>
-        console.log(`Server running on http://${HOST}:${PORT}`)
-      );
+      const server = app.listen(PORT, HOST, () => {
+        console.log(`Server running on http://${HOST}:${PORT}`);
+        // Do not block healthcheck on Supabase Storage (listBuckets can be slow).
+        void ensurePhotosBucket().catch((err) => {
+          console.warn('Supabase Storage bucket check failed:', err?.message || err);
+        });
+      });
 
       const shutdown = async (signal) => {
         console.log(`${signal} received, closing server and database pool…`);
