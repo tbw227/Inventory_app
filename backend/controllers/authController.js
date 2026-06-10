@@ -1,5 +1,6 @@
 const authService = require('../services/authService');
 const { provisionClerkTenant } = require('../services/clerkAuthService');
+const { recordAuditEvent } = require('../services/auditService');
 
 exports.register = async (req, res, next) => {
   try {
@@ -54,6 +55,20 @@ exports.clerkProvision = async (req, res, next) => {
   try {
     const { companyName, name } = req.validatedData;
     const profile = await provisionClerkTenant(req.clerkUserId, { companyName, name });
+    req.user = { _id: profile.id, company_id: profile.company_id };
+    req.auth = {
+      principalUserId: profile.id,
+      actorType: 'human',
+      actorId: req.clerkUserId,
+      scopes: [],
+      provider: 'clerk',
+    };
+    await recordAuditEvent(req, {
+      action: 'tenant.provisioned',
+      resourceType: 'company',
+      resourceId: profile.company_id,
+      metadata: { companyName },
+    });
     res.status(201).json({ user: profile });
   } catch (err) {
     next(err);

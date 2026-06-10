@@ -3,6 +3,7 @@ const { verifyToken } = require('../utils/auth');
 const prisma = require('../lib/prisma');
 const { isClerkConfigured } = require('../config/clerk');
 const { resolveUserFromClerkId } = require('../services/clerkAuthService');
+const { attachAuthContext } = require('../lib/authContext');
 
 const userSelect = {
   id: true,
@@ -36,29 +37,11 @@ async function enforceSubscription(user, res) {
   return true;
 }
 
-function attachUserToRequest(req, user) {
-  req.user = {
-    _id: user.id,
-    company_id: user.companyId,
-    role: user.role,
-    name: user.name,
-    email: user.email,
-    phone: user.phone,
-    photo_url: user.photoUrl,
-    bio: user.bio,
-    location: user.location,
-    birthday: user.birthday,
-    skills: user.skills,
-    preferences: user.preferences && typeof user.preferences === 'object' ? user.preferences : {},
-    createdAt: user.createdAt,
-  };
-}
-
 async function authenticateWithClerk(req, res) {
-  const auth = getAuth(req);
-  if (!auth?.userId) return false;
+  const clerkSession = getAuth(req);
+  if (!clerkSession?.userId) return false;
 
-  const user = await resolveUserFromClerkId(auth.userId);
+  const user = await resolveUserFromClerkId(clerkSession.userId);
   if (!user) {
     res.status(403).json({
       error: 'No company account linked to this Clerk user. Complete registration first.',
@@ -68,7 +51,7 @@ async function authenticateWithClerk(req, res) {
   }
 
   if (!(await enforceSubscription(user, res))) return true;
-  attachUserToRequest(req, user);
+  attachAuthContext(req, user, { clerkSession });
   return true;
 }
 
@@ -87,7 +70,7 @@ async function authenticateWithJwt(req, res) {
   }
 
   if (!(await enforceSubscription(user, res))) return true;
-  attachUserToRequest(req, user);
+  attachAuthContext(req, user);
   return true;
 }
 

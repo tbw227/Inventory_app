@@ -1,5 +1,6 @@
 const jobService = require('../services/jobService');
 const invoiceService = require('../services/invoiceService');
+const { recordAuditEvent } = require('../services/auditService');
 const prisma = require('../lib/prisma');
 
 exports.list = async (req, res, next) => {
@@ -23,6 +24,11 @@ exports.get = async (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const job = await jobService.createJob(req.user.company_id, req.validatedData);
+    await recordAuditEvent(req, {
+      action: 'job.created',
+      resourceType: 'job',
+      resourceId: job._id,
+    });
     res.status(201).json(job);
   } catch (err) {
     next(err);
@@ -42,6 +48,12 @@ exports.complete = async (req, res, next) => {
   try {
     const data = req.validatedData || req.body;
     const job = await jobService.completeJob(req.user.company_id, req.params.id, req.user.role, req.user._id, data);
+    await recordAuditEvent(req, {
+      action: 'job.completed',
+      resourceType: 'job',
+      resourceId: req.params.id,
+      metadata: { actorType: req.auth?.actorType },
+    });
     res.json({ message: 'Job completed and report sent', job });
   } catch (err) {
     next(err);

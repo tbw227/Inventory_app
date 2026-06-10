@@ -13,7 +13,7 @@ async function main() {
     'companies', 'users', 'clients', 'locations', 'supplies',
     'supply_import_jobs', 'supply_import_rows', 'quickbooks_connections',
     'jobs', 'job_locations', 'financial_accounts', 'tax_categories',
-    'financial_transactions', 'payments',
+    'financial_transactions', 'payments', 'audit_events',
   ];
   const missing = [];
   const disabled = [];
