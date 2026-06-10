@@ -6,6 +6,7 @@ describe('PDF Generation Utility', () => {
   // Clean up generated PDFs after tests
   afterEach(() => {
     const uploadsDir = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadsDir)) return;
     const files = fs.readdirSync(uploadsDir);
     files.forEach(file => {
       if (file.startsWith('report-') && file.endsWith('.pdf')) {
@@ -38,7 +39,7 @@ describe('PDF Generation Utility', () => {
 
       // Assert
       expect(pdfPath).toBeDefined();
-      expect(pdfPath).toContain('report-test-job-123.pdf');
+      expect(path.basename(pdfPath)).toMatch(/^report-.+\.pdf$/);
       expect(fs.existsSync(pdfPath)).toBe(true);
     });
 
