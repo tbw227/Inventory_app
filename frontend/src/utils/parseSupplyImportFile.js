@@ -1,17 +1,20 @@
-import { parseSupplyCsv } from './parseSupplyCsv'
+import {
+  isPdfBuffer,
+  shouldTryDocx,
+  looksLikeHtml,
+  looksLikeJson,
+  parseDocxBuffer,
+  parseHtmlText,
+  parseJsonText,
+  parsePdfBuffer,
+  parseSpreadsheetBuffer,
+  rowsLookLikeBinaryGarbage,
+  shouldTrySpreadsheet,
+  tryParseDelimitedText,
+} from './parseSupplyImportFormats'
 
-/** File picker accept list — CSV/TSV/text + Excel/ODS spreadsheets. */
-export const SUPPLY_IMPORT_ACCEPT =
-  '.csv,.tsv,.txt,.tab,.xlsx,.xls,.xlsm,.xlsb,.ods,' +
-  'text/csv,text/tab-separated-values,text/plain,' +
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
-  'application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet'
-
-const EXCEL_EXTENSIONS = new Set(['xlsx', 'xls', 'xlsm', 'xlsb', 'ods'])
-const PDF_EXTENSION = 'pdf'
-
-const PDF_ERROR =
-  'PDF files cannot be imported. Open the report in QuickBooks (or your accounting app) and export as Excel (.xlsx) or CSV, then upload that file here.'
+/** Accept any file — parsers are tried by format sniffing. */
+export const SUPPLY_IMPORT_ACCEPT = '*/*'
 
 function fileExtension(name) {
   const match = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/)
@@ -46,91 +49,14 @@ function decodeBufferAsText(buffer) {
   }
 }
 
-function isPdfBuffer(buffer) {
-  const bytes = new Uint8Array(buffer)
-  if (bytes.length < 5) return false
-  return (
-    bytes[0] === 0x25 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x44 &&
-    bytes[3] === 0x46 &&
-    bytes[4] === 0x2d
-  )
-}
-
-/** Detect binary/garbage text parses (e.g. PDF saved with wrong extension). */
-function rowsLookLikeBinaryGarbage(rows) {
-  const sample = (rows || [])
-    .slice(0, 20)
-    .flat()
-    .map((c) => String(c ?? ''))
-    .join('')
-  if (sample.length < 40) return false
-  const nonPrintable = sample.replace(/[\x09\x0a\x0d\x20-\x7e\u00a0-\u024f]/g, '').length
-  return nonPrintable / sample.length > 0.25
-}
-
-function isSpreadsheetBinary(buffer) {
-  const bytes = new Uint8Array(buffer)
-  if (bytes.length < 4) return false
-  // ZIP (xlsx, xlsm, ods)
-  if (bytes[0] === 0x50 && bytes[1] === 0x4b) return true
-  // OLE compound document (xls)
-  if (bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0) return true
-  return false
-}
-
-function shouldTrySpreadsheet(file, ext, buffer) {
-  if (EXCEL_EXTENSIONS.has(ext)) return true
-  const mime = String(file.type || '').toLowerCase()
-  if (/spreadsheet|excel|ms-excel|opendocument/i.test(mime)) return true
-  return isSpreadsheetBinary(buffer)
-}
-
-function normalizeSheetRows(rows) {
-  return (rows || [])
-    .map((row) => {
-      if (!Array.isArray(row)) return []
-      return row.map((cell) => {
-        if (cell == null) return ''
-        if (cell instanceof Date) return cell.toISOString().slice(0, 10)
-        return String(cell).trim()
-      })
-    })
-    .filter((row) => row.some((cell) => cell !== ''))
-}
-
-async function parseSpreadsheetBuffer(buffer, fileName) {
-  const XLSX = await import('xlsx')
-  let workbook
-  try {
-    workbook = XLSX.read(buffer, { type: 'array', raw: false, cellDates: true })
-  } catch (err) {
-    return {
-      rows: [],
-      warnings: [],
-      error: `Could not read spreadsheet: ${err?.message || 'invalid or unsupported format'}`,
-    }
-  }
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName]
-    if (!sheet) continue
-    const rows = normalizeSheetRows(XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }))
-    if (rows.length) {
-      return {
-        rows,
-        warnings: [`Imported from spreadsheet sheet "${sheetName}" in ${fileName || 'file'}.`],
-        error: null,
-      }
-    }
-  }
-
-  return { rows: [], warnings: [], error: 'Spreadsheet has no data rows on any sheet.' }
+function acceptParseResult(result) {
+  if (!result?.rows?.length) return null
+  if (rowsLookLikeBinaryGarbage(result.rows)) return null
+  return result
 }
 
 /**
- * Parse a supply import file (CSV, TSV, TXT, Excel, ODS).
+ * Parse a supply import file — spreadsheets, PDF, Word, HTML, JSON, CSV/TSV/TXT, and plain text.
  * @returns {Promise<{ rows: string[][], warnings: string[], error: string | null }>}
  */
 export async function parseSupplyImportFile(file) {
@@ -144,46 +70,66 @@ export async function parseSupplyImportFile(file) {
   }
 
   const ext = fileExtension(file.name)
-
-  if (ext === PDF_EXTENSION || isPdfBuffer(buffer)) {
-    return { rows: [], warnings: [], error: PDF_ERROR }
-  }
-
-  if (shouldTrySpreadsheet(file, ext, buffer)) {
-    const sheetResult = await parseSpreadsheetBuffer(buffer, file.name)
-    if (sheetResult.rows.length) return sheetResult
-    if (sheetResult.error && EXCEL_EXTENSIONS.has(ext)) return sheetResult
-  }
-
   const text = decodeBufferAsText(buffer)
-  if (String(text).trimStart().startsWith('%PDF-')) {
-    return { rows: [], warnings: [], error: PDF_ERROR }
-  }
-  const textResult = parseSupplyCsv(text)
-  if (textResult.rows.length) {
-    if (rowsLookLikeBinaryGarbage(textResult.rows)) {
-      return {
-        rows: [],
-        warnings: [],
-        error:
-          'This file does not look like a spreadsheet (unreadable text). Export as Excel (.xlsx) or CSV instead of PDF.',
-      }
-    }
-    return textResult
+  const warnings = []
+  const errors = []
+
+  /** @type {Array<() => Promise<{ rows: string[][], warnings?: string[], error?: string | null }>>} */
+  const parsers = []
+
+  if (looksLikeJson(text)) {
+    parsers.push(async () => parseJsonText(text))
   }
 
   if (shouldTrySpreadsheet(file, ext, buffer)) {
-    return parseSpreadsheetBuffer(buffer, file.name)
+    parsers.push(async () => parseSpreadsheetBuffer(buffer, file.name))
   }
 
-  return (
-    textResult.error
-      ? textResult
-      : {
-          rows: [],
-          warnings: [],
-          error:
-            'Could not parse file. Supported formats: CSV, TSV, TXT, Excel (.xlsx, .xls), and OpenDocument (.ods).',
+  if (isPdfBuffer(buffer) || ext === 'pdf') {
+    parsers.push(async () => parsePdfBuffer(buffer, file.name))
+  }
+
+  if (shouldTryDocx(file, ext)) {
+    parsers.push(async () => parseDocxBuffer(buffer, file.name))
+  }
+
+  if (looksLikeHtml(text, ext)) {
+    parsers.push(async () => parseHtmlText(text, file.name))
+  }
+
+  parsers.push(async () => tryParseDelimitedText(text))
+
+  if (!shouldTrySpreadsheet(file, ext, buffer)) {
+    parsers.push(async () => parseSpreadsheetBuffer(buffer, file.name))
+  }
+
+  if (!isPdfBuffer(buffer) && ext !== 'pdf') {
+    parsers.push(async () => parsePdfBuffer(buffer, file.name))
+  }
+
+  for (const run of parsers) {
+    try {
+      const result = await run()
+      if (result?.warnings?.length) warnings.push(...result.warnings)
+      if (result?.error) errors.push(result.error)
+
+      const accepted = acceptParseResult(result)
+      if (accepted) {
+        return {
+          rows: accepted.rows,
+          warnings: [...new Set([...warnings, ...(accepted.warnings || [])])],
+          error: null,
         }
-  )
+      }
+    } catch (err) {
+      errors.push(err?.message || 'Parser failed')
+    }
+  }
+
+  const hint = errors.length ? errors[0] : 'No tabular data found in this file.'
+  return {
+    rows: [],
+    warnings: [...new Set(warnings)],
+    error: `${hint} Supported: Excel, CSV/TSV, PDF, Word (.docx), HTML, JSON, and plain text exports.`,
+  }
 }

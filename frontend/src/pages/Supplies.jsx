@@ -710,12 +710,12 @@ export default function Supplies() {
               </button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Upload a spreadsheet or delimited file (CSV, TSV, TXT, Excel, ODS), map columns, preview validation, then
+              Upload any data file (Excel, CSV, PDF, Word, HTML, JSON, etc.), map columns, preview validation, then
               commit. Rows are scoped to your organization on the server.
             </p>
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                Spreadsheet or data file
+                Data file
               </label>
               <input
                 type="file"
@@ -724,8 +724,8 @@ export default function Supplies() {
                 className="text-sm w-full"
               />
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                Excel (.xlsx, .xls), CSV, TSV, or ODS — not PDF. From QuickBooks: export the report as
-                spreadsheet, not PDF.
+                Excel and CSV work best. PDF and Word are supported but columns may need manual mapping — always use
+                Preview before Import.
               </p>
               {importFileName && (
                 <p className="text-xs text-gray-500 mt-1">
