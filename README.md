@@ -50,7 +50,7 @@ npm run dev
 
 **Docker (Postgres + API + nginx frontend):** from repo root, `docker compose up --build` (see [`docker-compose.yml`](docker-compose.yml)).
 
-**Production (Vercel SPA + API on Railway/Render + Supabase):** see [`docs/DEPLOY_API.md`](docs/DEPLOY_API.md), [`docs/RAILWAY.md`](docs/RAILWAY.md), and [`render.yaml`](render.yaml).
+**Production (Vercel SPA + API on Railway + Supabase):** [`docs/DEPLOY_API.md`](docs/DEPLOY_API.md), [`docs/RAILWAY.md`](docs/RAILWAY.md), **[`docs/GO_LIVE.md`](docs/GO_LIVE.md)** (checklist before users).
 
 ---
 
@@ -165,6 +165,7 @@ Frontend samples: [`frontend/.env.sample`](frontend/.env.sample).
 | [docs/ACCESSIBILITY.md](./docs/ACCESSIBILITY.md) | WCAG 2.2 AA baseline, required patterns, tooling |
 | [docs/adr/](./docs/adr/) | Architecture decision records (Prisma, JWT, Supabase) |
 | [SUPABASE.md](./SUPABASE.md) | Hosted Postgres setup |
+| [docs/SUPABASE_CHECKLIST.md](./docs/SUPABASE_CHECKLIST.md) | Supabase audit (work item-by-item) |
 | [docs/KUBERNETES.md](./docs/KUBERNETES.md) | Kubernetes + NGINX Ingress scaling |
 | [docs/MONITORING.md](./docs/MONITORING.md) | Prometheus metrics + Grafana dashboards |
 | [docs/MARKETING_SITE.md](./docs/MARKETING_SITE.md) | Public marketing site (separate repo) |

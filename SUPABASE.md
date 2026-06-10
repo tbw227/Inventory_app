@@ -96,20 +96,34 @@ If those env vars are missing, `supabase` is `null` and the rest of the app can 
 
 ---
 
-## 4. Optional backend env (service role)
+## 4. Photo storage (recommended for production)
 
-For server-only SDK usage (e.g. Storage admin, Edge Functions calling back with service role), you can add to `backend/.env` (see comments in `backend/.env.sample`):
+Job photos and profile avatars upload through the **Express API** into a private Supabase Storage bucket when these server env vars are set:
 
 ```env
 SUPABASE_URL=https://[PROJECT_REF].supabase.co
-SUPABASE_SERVICE_ROLE_KEY=[service_role secret]
+SUPABASE_SERVICE_ROLE_KEY=[service_role secret from Settings → API]
+SUPABASE_STORAGE_BUCKET=photos
 ```
 
-Keep this only on the server and out of git.
+- Objects are stored at `{company_id}/{filename}.webp` — same tenant isolation as the database.
+- The browser still loads images via **`GET /api/v1/uploads/photos/...`** with JWT (no direct Storage URLs in the SPA).
+- On API startup, the server creates the `photos` bucket if missing (or run `supabase/migrations/20260608250000_storage_photos_bucket.sql` in the SQL editor).
+- Without these vars, uploads fall back to local disk under `backend/uploads/photos/` (fine for dev/tests; ephemeral on Railway).
+
+**Never** put the **service role** key in the frontend or in git.
 
 ---
 
-## 5. Supabase CLI (local stack)
+## 5. Optional backend env (other SDK use)
+
+For Edge Functions or other server-only Supabase SDK calls, the same `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` apply (see `backend/.env.sample`).
+
+Keep service role credentials only on the server and out of git.
+
+---
+
+## 6. Supabase CLI (local stack)
 
 Install the CLI: [Supabase CLI docs](https://supabase.com/docs/guides/cli/getting-started).
 
@@ -132,7 +146,7 @@ npx supabase link --project-ref [YOUR_PROJECT_REF]
 
 ---
 
-## 6. Migrations: one source of truth
+## 7. Migrations: one source of truth
 
 **Use Prisma as the authority** for schema changes in this codebase:
 
@@ -143,15 +157,19 @@ Avoid applying **both** `supabase db push` and Prisma migrations to the **same**
 
 ---
 
-## 7. Row Level Security (RLS)
+## 8. Row Level Security (RLS)
 
 This app’s primary security model is **Express + JWT + Prisma**, not browser queries with RLS.
 
-You do **not** need Supabase’s “automatically enable RLS on every new table” helper for this architecture. Turning RLS on without policies breaks PostgREST access for those tables; it is most useful when you intentionally build around **Supabase Auth + RLS policies** for each table.
+Migration **`20260608240000_enable_rls_data_api_lockdown`** enables RLS on all app tables **with no policies for `anon` / `authenticated`**. That blocks direct Supabase Data API access when the public anon key is in the frontend. Prisma (postgres role) bypasses RLS — the Express API is unchanged.
+
+When you add a new table via Prisma, add `ENABLE ROW LEVEL SECURITY` in the same migration (or a follow-up) so PostgREST stays locked down.
+
+If you later adopt **Supabase Auth + browser Data API**, add explicit `CREATE POLICY` rules per table scoped by `company_id` — do not remove RLS.
 
 ---
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Issue | What to check |
 |--------|----------------|
@@ -160,6 +178,8 @@ You do **not** need Supabase’s “automatically enable RLS on every new table�
 | Migrate errors | Prefer direct `5432` URL; pooler needs [Prisma + PgBouncer](https://www.prisma.io/docs/orm/prisma-client/setup-and-configuration/databases-connections/pgbouncer) settings |
 | IPv6 / network errors | Supabase docs on IPv4 add-on or different network |
 | Frontend `supabase` is `null` | `VITE_*` vars must be set in `frontend/.env` and dev server restarted |
+| Photos disappear after redeploy | Set `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` on the API host |
+| Confirm RLS on all tables | `cd backend && node scripts/check-rls.js` |
 
 ---
 
@@ -169,6 +189,7 @@ You do **not** need Supabase’s “automatically enable RLS on every new table�
 - [ ] `backend/.env` has `DATABASE_URL`  
 - [ ] `npx prisma migrate deploy` succeeded  
 - [ ] API starts and can reach the DB  
+- [ ] (Production) `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET=photos` on API  
 - [ ] (Optional) `frontend/.env` has `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`  
 - [ ] (Optional) `npx supabase link` if you use hosted CLI features  
 

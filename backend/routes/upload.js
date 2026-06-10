@@ -1,18 +1,12 @@
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
 const sharp = require('sharp');
 const { authenticate } = require('../middleware/auth');
 const uploadController = require('../controllers/uploadController');
+const { uploadTenantPhoto } = require('../services/photoStorageService');
 
 const router = express.Router();
-const uploadsDir = path.join(__dirname, '..', 'uploads', 'photos');
-
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -49,11 +43,9 @@ async function optimizeUploadedImage(req, _res, next) {
           .toBuffer();
 
     const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.webp`;
-    const targetPath = path.join(uploadsDir, filename);
-    await fs.promises.writeFile(targetPath, finalBuffer);
+    await uploadTenantPhoto(req.user.company_id, filename, finalBuffer, 'image/webp');
 
     req.file.filename = filename;
-    req.file.path = targetPath;
     req.file.size = finalBuffer.length;
     req.file.mimetype = 'image/webp';
   } catch (err) {

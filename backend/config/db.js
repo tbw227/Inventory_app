@@ -17,6 +17,11 @@ async function connectDB() {
       'DATABASE_URL is required. Use Supabase (Project Settings → Database) or local Postgres, e.g. postgresql://postgres:postgres@127.0.0.1:5432/firetrack'
     );
   }
+  if (!process.env.DIRECT_URL || !String(process.env.DIRECT_URL).trim()) {
+    throw new Error(
+      'DIRECT_URL is required for Prisma migrations. On Supabase use the direct db host (not the pooler). See SUPABASE.md and backend/.env.sample'
+    );
+  }
   await prisma.$connect();
   console.log('PostgreSQL connected (Prisma)');
 

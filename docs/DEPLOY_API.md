@@ -1,11 +1,14 @@
 # Deploy the API (production)
 
-The SPA on **Vercel** is static only. The **Express API** must run on a host that stays up (this guide uses **[Render](https://render.com)** + your existing **Supabase** database).
+The SPA on **Vercel** is static only. The **Express API** runs on **[Railway](https://railway.com)** (Nixpacks) with your existing **Supabase** database.
+
+**Step-by-step Railway dashboard settings:** [`docs/RAILWAY.md`](./RAILWAY.md)  
+**Before inviting users:** [`docs/GO_LIVE.md`](./GO_LIVE.md)
 
 ## Architecture
 
 ```text
-Browser → Vercel (React) → /api/v1/* proxied to → Render (Express) → Supabase (Postgres)
+Browser → Vercel (React) → /api/v1/* proxied to → Railway (Express) → Supabase (Postgres)
 ```
 
 ## 1. Prerequisites
@@ -23,46 +26,44 @@ In **Supabase → Project Settings → Database**:
 | `DATABASE_URL` | **Session pooler** (port 5432, `?pgbouncer=true&connection_limit=1`) for the running API |
 | `DIRECT_URL` | **Direct** host (`db.xxx.supabase.co`) for Prisma migrations on container start |
 
-Copy both into Render env vars (see below). See comments in [`backend/.env.sample`](../backend/.env.sample).
+Copy both into Railway service variables. See comments in [`backend/.env.sample`](../backend/.env.sample).
 
-## 2. Deploy API on Render
-
-### Option A — Blueprint (recommended)
+## 2. Deploy API on Railway
 
 1. Push this repo to GitHub.
-2. [Render Dashboard](https://dashboard.render.com/) → **New** → **Blueprint**.
-3. Connect the repo; Render reads [`render.yaml`](../render.yaml).
-4. When prompted, set **sync: false** variables:
-   - `DATABASE_URL`
-   - `DIRECT_URL`
-   - `FRONTEND_URL` — your Vercel URL, e.g. `https://inventory-app-delta-seven.vercel.app`
-   - `MARKETING_URL` — marketing site if you have one (or repeat the app URL for now)
-5. Deploy and wait until status is **Live**.
+2. **Railway → New Project → Deploy from GitHub** → select this repo.
+3. Add a service with **Root Directory** = `backend`.
+4. **Builder:** Nixpacks (not Dockerfile). Config-as-code: [`railway.toml`](../railway.toml) at repo root (link in **Settings → Config-as-code**).
+5. **Start command:** `npm start` (runs `prisma migrate deploy` then `node server.js`).
+6. **Healthcheck path:** `/health/live`
+7. **Do not** set `PORT` manually or hardcode target port `5000` — Railway injects `PORT` at runtime.
+8. Set variables (minimum):
 
-### Option B — Manual Web Service
+| Variable | Notes |
+|----------|--------|
+| `NODE_ENV` | `production` |
+| `JWT_SECRET` | random 32+ characters |
+| `DATABASE_URL` | Supabase session pooler URL |
+| `DIRECT_URL` | Supabase direct URL (migrations) |
+| `FRONTEND_URL` | Your Vercel origin, e.g. `https://your-app.vercel.app` |
 
-1. **New → Web Service** → connect repo.
-2. **Root directory:** `backend`
-3. **Runtime:** Docker (uses [`backend/Dockerfile`](../backend/Dockerfile))
-4. **Health check path:** `/health`
-5. Add the same environment variables as in [`render.yaml`](../render.yaml).
+Optional: `MARKETING_URL`, `ALLOW_PUBLIC_REGISTRATION=true`, Stripe, `SENTRY_DSN`, `REDIS_URL`.
 
-`JWT_SECRET` is auto-generated in the Blueprint; for manual setup use a random 32+ character string.
+Full dashboard table and troubleshooting: [`docs/RAILWAY.md`](./RAILWAY.md).
 
 ### Verify the API
 
-Replace with your Render URL (e.g. `https://inventory-api-xxxx.onrender.com`):
+Replace with your Railway URL (e.g. `https://inventoryapp-production-dfa1.up.railway.app`):
 
 ```text
-GET https://YOUR-RENDER-SERVICE.onrender.com/health
+GET https://YOUR-SERVICE.up.railway.app/health/live   → {"status":"OK"}
+GET https://YOUR-SERVICE.up.railway.app/health        → "database": "connected"
 ```
-
-Expect JSON with `"database": "connected"`.
 
 Login route exists if POST returns **400/401** (not **404**):
 
 ```text
-POST https://YOUR-RENDER-SERVICE.onrender.com/api/v1/auth/login
+POST https://YOUR-SERVICE.up.railway.app/api/v1/auth/login
 Content-Type: application/json
 
 {"email":"alice@example.com","password":"Admin123!"}
@@ -71,16 +72,15 @@ Content-Type: application/json
 ## 3. Wire Vercel (frontend)
 
 1. **Vercel → Project → Settings → Environment Variables**
-2. Set **`VITE_API_URL`** = `https://YOUR-RENDER-SERVICE.onrender.com`  
+2. Set **`VITE_API_URL`** = `https://YOUR-SERVICE.up.railway.app`  
    (origin only — **no** `/api/v1` suffix)
-3. **Remove** any placeholder like `https://your-backend.onrender.com`.
-4. **Redeploy** the frontend (env vars apply at build time).
+3. **Redeploy** the frontend (env vars apply at build time).
 
-The build runs [`frontend/scripts/vercel-build-setup.mjs`](../frontend/scripts/vercel-build-setup.mjs), which proxies `your-app.vercel.app/api/*` → your Render API.
+The build runs [`frontend/scripts/vercel-build-setup.mjs`](../frontend/scripts/vercel-build-setup.mjs), which proxies `your-app.vercel.app/api/*` → your Railway API.
 
 ## 4. CORS / auth checklist
 
-On **Render**, confirm:
+On **Railway**, confirm:
 
 | Variable | Example |
 |----------|---------|
@@ -106,21 +106,22 @@ The API **will not start** in production without at least one origin in `FRONTEN
 | Redis cache | `REDIS_URL` (Upstash free tier works) |
 | Sentry | `SENTRY_DSN` |
 
-## 7. Limitations (free tier)
+## 7. Production notes
 
-- **Render free** spins down after idle; first request may take ~30s.
 - **Uploads** (`uploads/photos`) are on container disk — not durable across redeploys; use object storage for production photos later.
-- **Stripe webhooks** need a public URL: `https://YOUR-RENDER-SERVICE.onrender.com/api/webhooks/...`
+- **Stripe webhooks** need a public URL: `https://YOUR-SERVICE.up.railway.app/api/webhooks/...`
+- **Multiple API replicas** — set `REDIS_URL` so tenant cache is shared (see `backend/.env.sample`).
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `your-backend.onrender.com` 404 | Replace placeholder `VITE_API_URL` on Vercel with your real Render URL |
-| CORS error in browser | Add exact Vercel URL to `FRONTEND_URL` on Render, redeploy API |
-| API crash on start | Check Render logs; usually missing `FRONTEND_URL` or bad `DATABASE_URL` |
+| Vercel API 404 / wrong host | Set `VITE_API_URL` to Railway origin; redeploy frontend |
+| CORS error in browser | Add exact Vercel URL to `FRONTEND_URL` on Railway, redeploy API |
+| 502 on Railway | Remove hardcoded target port 5000; see [`docs/RAILWAY.md`](./RAILWAY.md) |
+| API crash on start | Railway logs; usually missing `FRONTEND_URL` or bad `DATABASE_URL` |
 | `database: error` on `/health` | Fix Supabase URLs; pooler for `DATABASE_URL`, direct for `DIRECT_URL` |
-| 404 on login | Wrong API host or API not deployed; verify `/health` first |
+| 404 on login | Wrong API host or API not deployed; verify `/health/live` first |
 
 ## Local dev (unchanged)
 

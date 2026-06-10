@@ -26,3 +26,25 @@ export function isProtectedUploadPath(path) {
   const p = String(path).trim()
   return /\/uploads\/photos\//.test(p)
 }
+
+/**
+ * Allow only relative app paths, http(s), or blob URLs (from URL.createObjectURL).
+ * Blocks javascript:, data:, and other schemes that can enable DOM XSS in img src.
+ */
+export function isSafeImageSrc(url) {
+  if (url == null || typeof url !== 'string') return false
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  if (trimmed.startsWith('blob:')) {
+    return /^blob:[^"'<>]*$/i.test(trimmed)
+  }
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return !/[\0-\x1f\x7f]/.test(trimmed)
+  }
+  try {
+    const parsed = new URL(trimmed)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}

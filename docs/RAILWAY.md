@@ -1,5 +1,7 @@
 # Deploy API on Railway (Nixpacks — no Docker)
 
+Canonical production API host for this project (Vercel frontend + Supabase Postgres). Overview: [`DEPLOY_API.md`](./DEPLOY_API.md).
+
 ## Dashboard settings (Option 1)
 
 **Railway → your API service → Settings**
@@ -50,6 +52,19 @@ Railway injects `PORT` at runtime. A fixed target port of 5000 while the app lis
 Do **not** set `PORT` manually.
 
 Optional: `MARKETING_URL`, `ALLOW_PUBLIC_REGISTRATION=true`
+
+**Before real users** (see [`GO_LIVE.md`](./GO_LIVE.md)):
+
+| Variable | Recommended |
+|----------|-------------|
+| `DASHBOARD_DEMO_REVENUE` | `false` (default off when `NODE_ENV=production`) |
+| `SUBSCRIPTION_ENFORCE` | `true` after Stripe webhooks work |
+| `SENTRY_DSN` | Your Sentry project DSN |
+| `EMAIL_*` | SMTP for password reset |
+| `STRIPE_*` | Live keys when billing is on |
+| `SUPABASE_URL` | `https://YOUR_REF.supabase.co` — durable photo storage |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only — never expose to frontend |
+| `SUPABASE_STORAGE_BUCKET` | `photos` (default) |
 
 After changes → **Redeploy**.
 

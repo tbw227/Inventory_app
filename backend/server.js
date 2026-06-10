@@ -1,6 +1,7 @@
 require('./loadEnv');
 
 const connectDB = require('./config/db');
+const { ensurePhotosBucket } = require('./lib/supabaseAdmin');
 
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -20,6 +21,7 @@ try {
 
 if (process.env.NODE_ENV !== 'test') {
   connectDB()
+    .then(() => ensurePhotosBucket())
     .then(() => {
       const server = app.listen(PORT, HOST, () =>
         console.log(`Server running on http://${HOST}:${PORT}`)

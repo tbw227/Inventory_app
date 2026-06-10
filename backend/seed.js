@@ -5,7 +5,32 @@ const prisma = require('./lib/prisma');
 const { hashPassword } = require('./utils/auth');
 const { buildSupplySeedRows, FIRST_AID_CATALOG_LINE_COUNT } = require('./data/firstAidCatalogSeed');
 
+const DEFAULT_ADMIN_PASSWORD = 'Admin123!';
+const DEFAULT_TECH_PASSWORD = 'Tech123!';
+
+function resolveSeedPasswords() {
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+  const techPassword = process.env.SEED_TECH_PASSWORD || DEFAULT_TECH_PASSWORD;
+
+  if (process.env.NODE_ENV === 'production') {
+    if (
+      !process.env.SEED_ADMIN_PASSWORD ||
+      !process.env.SEED_TECH_PASSWORD ||
+      adminPassword === DEFAULT_ADMIN_PASSWORD ||
+      techPassword === DEFAULT_TECH_PASSWORD
+    ) {
+      console.error(
+        'Refusing to seed production with default or missing passwords. Set SEED_ADMIN_PASSWORD and SEED_TECH_PASSWORD.'
+      );
+      process.exit(1);
+    }
+  }
+
+  return { adminPassword, techPassword };
+}
+
 const seedData = async () => {
+  const { adminPassword, techPassword } = resolveSeedPasswords();
   await prisma.payment.deleteMany();
   await prisma.jobLocation.deleteMany();
   await prisma.job.deleteMany();
@@ -24,8 +49,8 @@ const seedData = async () => {
     },
   });
 
-  const adminHash = await hashPassword('Admin123!');
-  const techHash = await hashPassword('Tech123!');
+  const adminHash = await hashPassword(adminPassword);
+  const techHash = await hashPassword(techPassword);
 
   const admin = await prisma.user.create({
     data: {
@@ -109,8 +134,11 @@ const seedData = async () => {
 
   console.log('Seed data inserted');
   console.log(`  Shop catalog: ${FIRST_AID_CATALOG_LINE_COUNT} supplies (on-hand starts at 0; station inventory cleared)`);
-  console.log('  Admin: alice@example.com / Admin123!');
-  console.log('  Tech:  bob@example.com / Tech123!');
+  console.log('  Admin: alice@example.com');
+  console.log('  Tech:  bob@example.com');
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('  (dev passwords: set SEED_ADMIN_PASSWORD / SEED_TECH_PASSWORD to override defaults)');
+  }
   process.exit();
 };
 
