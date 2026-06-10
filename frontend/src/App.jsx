@@ -1,7 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react'
 import { clearStaleAppRecoveryState } from './utils/recoverStaleApp'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import { ROUTES } from './config/routes'
 import { PUBLIC_REGISTRATION_ENABLED } from './config/security'
@@ -56,10 +55,9 @@ export default function App() {
   }, [])
 
   return (
-    <AuthProvider>
-      <Suspense fallback={<RouteFallback />}>
-        <Toaster position="bottom-center" />
-        <Routes>
+    <Suspense fallback={<RouteFallback />}>
+      <Toaster position="bottom-center" />
+      <Routes>
           <Route
             path={ROUTES.REGISTER}
             element={PUBLIC_REGISTRATION_ENABLED ? <Register /> : <RedirectToMarketingSignup />}
@@ -90,8 +88,7 @@ export default function App() {
           <Route path={ROUTES.WEATHER_DEMO} element={<ProtectedLayout><WeatherDemo /></ProtectedLayout>} />
           <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
           <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
-        </Routes>
-      </Suspense>
-    </AuthProvider>
+      </Routes>
+    </Suspense>
   )
 }

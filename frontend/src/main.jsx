@@ -1,13 +1,27 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { ClerkProvider } from '@clerk/clerk-react'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import { ThemeProvider } from './context/ThemeContext'
+import { AuthProvider } from './context/AuthContext'
+import ClerkAuthBridge from './components/auth/ClerkAuthBridge'
 import App from './App'
 import './styles/index.css'
 import { installStaleDeployRecovery } from './utils/recoverStaleApp'
+import { isClerkEnabled, getClerkPublishableKey } from './config/clerk'
 
 installStaleDeployRecovery()
+
+function AppTree() {
+  const app = <App />
+  if (!isClerkEnabled()) return app
+  return (
+    <ClerkProvider publishableKey={getClerkPublishableKey()}>
+      <ClerkAuthBridge>{app}</ClerkAuthBridge>
+    </ClerkProvider>
+  )
+}
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -19,7 +33,9 @@ createRoot(document.getElementById('root')).render(
             v7_relativeSplatPath: true,
           }}
         >
-          <App />
+          <AuthProvider>
+            <AppTree />
+          </AuthProvider>
         </BrowserRouter>
       </ThemeProvider>
     </ErrorBoundary>

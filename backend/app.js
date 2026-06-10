@@ -29,12 +29,18 @@ const { prometheusMiddleware, shouldSkipMetrics } = require('./middleware/promet
 const responseCacheControl = require('./middleware/responseCacheControl');
 const errorHandler = require('./middleware/errorHandler');
 const { isLanCorsAllowed, getConfiguredBrowserOrigins } = require('./config/security');
+const { isClerkConfigured } = require('./config/clerk');
 
 const app = express();
 app.set('etag', 'weak');
 // Behind Railway/Vercel proxies, trust the first hop so express-rate-limit and
 // req.ip read the client address from X-Forwarded-For instead of erroring.
 app.set('trust proxy', 1);
+
+if (isClerkConfigured() && process.env.NODE_ENV !== 'test') {
+  const { clerkMiddleware } = require('@clerk/express');
+  app.use(clerkMiddleware());
+}
 
 if (process.env.NODE_ENV === 'production') {
   const origins = getConfiguredBrowserOrigins();

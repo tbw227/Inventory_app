@@ -1,6 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { authenticate } = require('../middleware/auth');
+const { requireClerkSession } = require('../middleware/clerkSession');
 const { validate, schemas } = require('../middleware/validation');
 const authController = require('../controllers/authController');
 const { isPublicRegistrationAllowed } = require('../config/security');
@@ -40,6 +41,13 @@ router.post(
   authController.register
 );
 router.post('/login', loginLimiter, validate(schemas.login), authController.login);
+router.post(
+  '/clerk/provision',
+  loginLimiter,
+  requireClerkSession,
+  validate(schemas.clerkProvision),
+  authController.clerkProvision
+);
 router.post('/forgot-password', passwordResetLimiter, validate(schemas.forgotPassword), authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, validate(schemas.resetPassword), authController.resetPassword);
 router.get('/me', authenticate, authController.me);

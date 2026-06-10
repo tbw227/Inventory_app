@@ -12,6 +12,8 @@ import { MARKETING_SITE_URL } from '../config/marketing'
 import { getSignupHref, isMarketingSiteConfigured, useInAppSignupLink } from '../config/signup'
 import BrandLogo from '../components/ui/BrandLogo'
 import { PRODUCT_NAME } from '../config/brand'
+import { isClerkEnabled } from '../config/clerk'
+import ClerkSignInPanel from '../components/auth/ClerkSignInPanel'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -50,7 +52,17 @@ export default function Login() {
           <BrandLogo size="lg" showName nameClassName="text-blue-600" />
           <p className="mt-3 text-sm text-gray-500">Sign in to {PRODUCT_NAME}</p>
         </div>
+        {isClerkEnabled() && (
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-4">
+            <ClerkSignInPanel />
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
+          {isClerkEnabled() && (
+            <p className="text-center text-xs font-medium uppercase tracking-wide text-gray-400">
+              Or sign in with email
+            </p>
+          )}
           {import.meta.env.PROD && (
             <div
               className={`rounded-md border px-3 py-2 text-xs ${

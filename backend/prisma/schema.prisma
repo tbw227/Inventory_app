@@ -97,6 +97,7 @@ model User {
   role                   UserRole
   name                   String
   email                  String    @unique
+  clerkUserId            String?   @unique @map("clerk_user_id")
   passwordHash           String    @map("password_hash")
   phone                  String?
   photoUrl               String    @default("") @map("photo_url")

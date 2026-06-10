@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
-import { useNavigate, Navigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ROUTES } from '../config/routes'
-import api from '../services/api'
+import api, { getApiErrorMessage } from '../services/api'
 import BrandLogo from '../components/ui/BrandLogo'
 import { PRODUCT_NAME } from '../config/brand'
+import { isClerkEnabled } from '../config/clerk'
 
 export default function Register() {
   const [companyName, setCompanyName] = useState('')
@@ -14,16 +15,37 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
-  const { user, login: authLogin } = useAuth()
+  const { user, applySession } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const clerkProvision = isClerkEnabled() && location.state?.clerkProvision === true
 
   if (user) {
     return <Navigate to={ROUTES.DASHBOARD} replace />
   }
 
+  async function handleClerkProvision(e) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      const res = await api.post('/auth/clerk/provision', { companyName, name: name || undefined })
+      applySession(res.data.user, { provider: 'clerk' })
+      navigate(ROUTES.DASHBOARD, { replace: true })
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Could not create your company. Sign in with Clerk first.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
+
+    if (clerkProvision) {
+      return handleClerkProvision(e)
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.')
@@ -54,7 +76,11 @@ export default function Register() {
         <div className="text-center mb-8 flex flex-col items-center">
           <BrandLogo size="lg" showName nameClassName="text-blue-600" />
           <h1 className="mt-4 text-xl font-semibold text-gray-900">Create your company</h1>
-          <p className="mt-1 text-sm text-gray-500">Join {PRODUCT_NAME} — set up your business in under a minute</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {clerkProvision
+              ? 'Finish setup — link your Clerk account to a new company workspace'
+              : `Join ${PRODUCT_NAME} — set up your business in under a minute`}
+          </p>
         </div>
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 space-y-4">
           <div>
@@ -82,46 +108,50 @@ export default function Register() {
               placeholder="Jane Smith"
             />
           </div>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="jane@company.com"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              minLength={8}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Min. 8 characters"
-            />
-          </div>
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Re-enter your password"
-            />
-          </div>
+          {!clerkProvision && (
+            <>
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="jane@company.com"
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  minLength={8}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Min. 8 characters"
+                />
+              </div>
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Re-enter your password"
+                />
+              </div>
+            </>
+          )}
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
               {error}

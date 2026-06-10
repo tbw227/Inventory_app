@@ -1,4 +1,5 @@
 const authService = require('../services/authService');
+const { provisionClerkTenant } = require('../services/clerkAuthService');
 
 exports.register = async (req, res, next) => {
   try {
@@ -44,6 +45,16 @@ exports.me = async (req, res, next) => {
   try {
     const profile = await authService.me(req.user._id);
     res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.clerkProvision = async (req, res, next) => {
+  try {
+    const { companyName, name } = req.validatedData;
+    const profile = await provisionClerkTenant(req.clerkUserId, { companyName, name });
+    res.status(201).json({ user: profile });
   } catch (err) {
     next(err);
   }

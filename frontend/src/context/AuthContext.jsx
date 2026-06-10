@@ -1,19 +1,14 @@
 /**
  * AuthContext — global authentication state for the SPA.
  *
- * Provides: { user, loading, login, logout, refreshUser, isAdmin }
- *
- * On mount, if a JWT token exists in localStorage, it calls GET /auth/me
- * to revalidate the session. If the token is expired or invalid, the user
- * is logged out and redirected to /login (handled by the axios interceptor
- * in services/api.js).
- *
- * Token storage: localStorage (see AUDIT.md §2 for planned migration to
- * httpOnly cookies + refresh flow).
+ * Supports hybrid auth:
+ *   - Legacy JWT (email/password → localStorage token)
+ *   - Clerk session (Bearer from @clerk/clerk-react when VITE_CLERK_PUBLISHABLE_KEY is set)
  */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import api from '../services/api'
 import { isAbortError } from '../utils/isAbortError'
+import { isClerkEnabled } from '../config/clerk'
 
 const AuthContext = createContext(null)
 
@@ -25,18 +20,22 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (isClerkEnabled()) {
+      return undefined
+    }
+
     const token = localStorage.getItem('token')
     if (!token) {
       setLoading(false)
-      return
+      return undefined
     }
 
     const controller = new AbortController()
     ;(async () => {
       try {
         const res = await api.get('/auth/me', { signal: controller.signal })
-        setUser(res.data)
-        localStorage.setItem('user', JSON.stringify(res.data))
+        setUser({ ...res.data, authProvider: 'legacy' })
+        localStorage.setItem('user', JSON.stringify({ ...res.data, authProvider: 'legacy' }))
       } catch (e) {
         if (isAbortError(e)) return
         localStorage.removeItem('token')
@@ -50,30 +49,50 @@ export function AuthProvider({ children }) {
     return () => controller.abort()
   }, [])
 
+  const applySession = useCallback((userData, { provider = 'legacy' } = {}) => {
+    const next = { ...userData, authProvider: provider }
+    setUser(next)
+    localStorage.setItem('user', JSON.stringify(next))
+    if (provider !== 'clerk') {
+      return
+    }
+    localStorage.removeItem('token')
+  }, [])
+
   const login = useCallback(async (email, password) => {
     const res = await api.post('/auth/login', { email, password })
     const { token, user: userData } = res.data
     localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(userData))
-    setUser(userData)
+    applySession(userData, { provider: 'legacy' })
     return userData
-  }, [])
+  }, [applySession])
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    setUser(null)
-  }, [])
+  const logout = useCallback(
+    ({ clerkSignOut } = {}) => {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      setUser(null)
+      if (clerkSignOut) void clerkSignOut()
+    },
+    []
+  )
 
   const refreshUser = useCallback(async () => {
-    const token = localStorage.getItem('token')
-    if (!token) return
     const res = await api.get('/auth/me')
-    setUser(res.data)
-    localStorage.setItem('user', JSON.stringify(res.data))
-  }, [])
+    const provider = user?.authProvider || (isClerkEnabled() ? 'clerk' : 'legacy')
+    applySession(res.data, { provider })
+  }, [applySession, user?.authProvider])
 
-  const value = { user, loading, login, logout, refreshUser, isAdmin: user?.role === 'admin' }
+  const value = {
+    user,
+    loading,
+    login,
+    logout,
+    refreshUser,
+    applySession,
+    setAuthLoading: setLoading,
+    isAdmin: user?.role === 'admin',
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -50,6 +50,13 @@ export function getApiDeploymentInfo() {
   }
 }
 
+let authTokenGetter = null
+
+/** Register async Clerk token provider (see ClerkAuthBridge). */
+export function setAuthTokenGetter(getter) {
+  authTokenGetter = typeof getter === 'function' ? getter : null
+}
+
 const axiosBaseURL = resolveApiBaseURL()
 
 if (import.meta.env.DEV) {
@@ -115,13 +122,24 @@ function looksLikeHtmlPayload(data) {
   return typeof data === 'string' && /^\s*</.test(data)
 }
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type']
   }
   const path = config.url || ''
   if (isAnonymousAuthRequest(path)) {
     return config
+  }
+  if (authTokenGetter) {
+    try {
+      const clerkToken = await authTokenGetter()
+      if (clerkToken) {
+        config.headers.Authorization = `Bearer ${clerkToken}`
+        return config
+      }
+    } catch {
+      /* fall through to legacy JWT */
+    }
   }
   const token = localStorage.getItem('token')
   if (token) {
@@ -149,11 +167,14 @@ api.interceptors.response.use(
       // eslint-disable-next-line no-console
       console.error('[api] Non-JSON error body (often means API proxy is misconfigured):', reqUrl)
     }
-    if (status === 401 && !isAnonymousAuthRequest(reqUrl)) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      if (window.location.pathname !== ROUTES.LOGIN) {
-        window.location.href = ROUTES.LOGIN
+    const needsProvision = error.response?.data?.code === 'CLERK_NEEDS_PROVISIONING'
+    if ((status === 401 || needsProvision) && !isAnonymousAuthRequest(reqUrl)) {
+      if (!needsProvision) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        if (window.location.pathname !== ROUTES.LOGIN) {
+          window.location.href = ROUTES.LOGIN
+        }
       }
     }
     return Promise.reject(error)

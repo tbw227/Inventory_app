@@ -54,6 +54,11 @@ const schemas = {
     password: Joi.string().min(1).required(),
   }),
 
+  clerkProvision: Joi.object({
+    companyName: Joi.string().trim().min(2).max(120).required(),
+    name: Joi.string().trim().min(2).max(100).optional(),
+  }),
+
   forgotPassword: Joi.object({
     email: Joi.string().email().required(),
   }),
