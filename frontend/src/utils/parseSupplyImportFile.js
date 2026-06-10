@@ -8,6 +8,10 @@ export const SUPPLY_IMPORT_ACCEPT =
   'application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet'
 
 const EXCEL_EXTENSIONS = new Set(['xlsx', 'xls', 'xlsm', 'xlsb', 'ods'])
+const PDF_EXTENSION = 'pdf'
+
+const PDF_ERROR =
+  'PDF files cannot be imported. Open the report in QuickBooks (or your accounting app) and export as Excel (.xlsx) or CSV, then upload that file here.'
 
 function fileExtension(name) {
   const match = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/)
@@ -40,6 +44,30 @@ function decodeBufferAsText(buffer) {
   } catch {
     return utf8
   }
+}
+
+function isPdfBuffer(buffer) {
+  const bytes = new Uint8Array(buffer)
+  if (bytes.length < 5) return false
+  return (
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46 &&
+    bytes[4] === 0x2d
+  )
+}
+
+/** Detect binary/garbage text parses (e.g. PDF saved with wrong extension). */
+function rowsLookLikeBinaryGarbage(rows) {
+  const sample = (rows || [])
+    .slice(0, 20)
+    .flat()
+    .map((c) => String(c ?? ''))
+    .join('')
+  if (sample.length < 40) return false
+  const nonPrintable = sample.replace(/[\x09\x0a\x0d\x20-\x7e\u00a0-\u024f]/g, '').length
+  return nonPrintable / sample.length > 0.25
 }
 
 function isSpreadsheetBinary(buffer) {
@@ -117,6 +145,10 @@ export async function parseSupplyImportFile(file) {
 
   const ext = fileExtension(file.name)
 
+  if (ext === PDF_EXTENSION || isPdfBuffer(buffer)) {
+    return { rows: [], warnings: [], error: PDF_ERROR }
+  }
+
   if (shouldTrySpreadsheet(file, ext, buffer)) {
     const sheetResult = await parseSpreadsheetBuffer(buffer, file.name)
     if (sheetResult.rows.length) return sheetResult
@@ -124,8 +156,21 @@ export async function parseSupplyImportFile(file) {
   }
 
   const text = decodeBufferAsText(buffer)
+  if (String(text).trimStart().startsWith('%PDF-')) {
+    return { rows: [], warnings: [], error: PDF_ERROR }
+  }
   const textResult = parseSupplyCsv(text)
-  if (textResult.rows.length) return textResult
+  if (textResult.rows.length) {
+    if (rowsLookLikeBinaryGarbage(textResult.rows)) {
+      return {
+        rows: [],
+        warnings: [],
+        error:
+          'This file does not look like a spreadsheet (unreadable text). Export as Excel (.xlsx) or CSV instead of PDF.',
+      }
+    }
+    return textResult
+  }
 
   if (shouldTrySpreadsheet(file, ext, buffer)) {
     return parseSpreadsheetBuffer(buffer, file.name)

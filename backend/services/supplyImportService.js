@@ -11,13 +11,14 @@ function normalizeImportItem(raw, index) {
   if (!name) {
     return { ok: false, rowNum, error: 'Name is required' };
   }
-  if (name.length > 100) {
-    return { ok: false, rowNum, error: 'Name must be at most 100 characters' };
+  if (name.length > 500) {
+    return { ok: false, rowNum, error: 'Name must be at most 500 characters' };
   }
   const out = {
     name,
     category: raw?.category,
     quantity_on_hand: raw?.quantity_on_hand,
+    case_qty: raw?.case_qty,
     reorder_threshold: raw?.reorder_threshold,
     unit_price: raw?.unit_price,
   };

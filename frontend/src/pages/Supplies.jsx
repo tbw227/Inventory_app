@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import api, { getApiErrorMessage } from '../services/api'
 import { parseSupplyImportFile, SUPPLY_IMPORT_ACCEPT } from '../utils/parseSupplyImportFile'
+import {
+  countMappedFields,
+  defaultSupplyColumnMapping,
+  inferSupplyColumnMapping,
+  trimRowsToImportHeader,
+} from '../utils/inferSupplyColumnMapping'
 import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime } from '../utils/formatDate'
 import InventoryOverviewCharts from '../components/inventory/InventoryOverviewCharts'
@@ -54,8 +60,17 @@ function fmtMoneyCell(n) {
   return `$${Number(n).toFixed(2)}`
 }
 
+function composeImportName(name, itemNo) {
+  const n = String(name || '').trim()
+  const sku = String(itemNo || '').trim()
+  if (!n) return ''
+  if (!sku || /^\[/.test(n)) return n
+  return `[${sku}] ${n}`
+}
+
 const IMPORT_FIELDS = [
-  { key: 'name', label: 'Name', required: true },
+  { key: 'item_no', label: 'Item # / SKU' },
+  { key: 'name', label: 'Name / description', required: true },
   { key: 'category', label: 'Category' },
   { key: 'quantity_on_hand', label: 'Shop on hand (QOH)' },
   { key: 'case_qty', label: 'Case qty' },
@@ -74,7 +89,9 @@ function buildImportItems(rows, hasHeader, mapping) {
   const items = []
   for (const row of dataRows) {
     if (!row || !row.length) continue
-    const name = cellAt(row, mapping.name)
+    const rawName = cellAt(row, mapping.name)
+    const itemNo = cellAt(row, mapping.item_no)
+    const name = composeImportName(rawName, itemNo)
     if (!name) continue
     const item = { name }
     const cat = cellAt(row, mapping.category)
@@ -94,15 +111,6 @@ function buildImportItems(rows, hasHeader, mapping) {
   }
   return items
 }
-
-const defaultMapping = () => ({
-  name: null,
-  category: null,
-  quantity_on_hand: null,
-  case_qty: null,
-  reorder_threshold: null,
-  unit_price: null,
-})
 
 export default function Supplies() {
   const { isAdmin } = useAuth()
@@ -132,7 +140,7 @@ export default function Supplies() {
   const [importFileName, setImportFileName] = useState('')
   const [parsedRows, setParsedRows] = useState([])
   const [hasHeader, setHasHeader] = useState(true)
-  const [columnMapping, setColumnMapping] = useState(defaultMapping)
+  const [columnMapping, setColumnMapping] = useState(defaultSupplyColumnMapping)
   const [importStep, setImportStep] = useState('map')
   const [previewResult, setPreviewResult] = useState(null)
   const [importBusy, setImportBusy] = useState(false)
@@ -183,7 +191,7 @@ export default function Supplies() {
     setImportFileName('')
     setParsedRows([])
     setHasHeader(true)
-    setColumnMapping(defaultMapping())
+    setColumnMapping(defaultSupplyColumnMapping())
     setImportStep('map')
     setPreviewResult(null)
     setImportBusy(false)
@@ -204,46 +212,32 @@ export default function Supplies() {
     setImportErr(null)
     setImportMsg(null)
     try {
-      const { rows, warnings, error } = await parseSupplyImportFile(file)
+      const { rows: rawRows, warnings, error } = await parseSupplyImportFile(file)
       if (error) {
         setImportErr(error)
         return
       }
-      setImportMsg(warnings.length ? warnings[0] : null)
+      const { rows, skipped } = trimRowsToImportHeader(rawRows)
       setParsedRows(rows)
-      setColumnMapping(defaultMapping())
       setPreviewResult(null)
       setImportStep('map')
-      if (rows.length && hasHeader && rows[0]) {
-        const hdr = rows[0].map((c) => String(c ?? '').trim().toLowerCase())
-        const next = defaultMapping()
-        const pick = (candidates) => {
-          for (const cand of candidates) {
-            const i = hdr.findIndex((h) => h === cand || h.replace(/\s+/g, '') === cand.replace(/\s+/g, ''))
-            if (i >= 0) return i
-          }
-          return null
-        }
-        next.name = pick(['name', 'item', 'product', 'description', 'item description'])
-        next.category = pick(['category', 'type', 'class'])
-        next.quantity_on_hand = pick([
-          'shop qoh',
-          'shop qty',
-          'quantity on hand',
-          'on hand',
-          'on hands',
-          'on hands amount',
-          'qoh',
-          'count',
-          'count amount',
-          'quantity',
-          'qty',
-          'stock',
-        ])
-        next.case_qty = pick(['case qty', 'case quantity', 'case amount', 'case'])
-        next.reorder_threshold = pick(['reorder', 'reorder at', 'min', 'minimum'])
-        next.unit_price = pick(['unit price', 'price', 'cost', 'rate'])
-        setColumnMapping(next)
+      const inferred = inferSupplyColumnMapping(rows, hasHeader)
+      setColumnMapping(inferred)
+      const mapped = countMappedFields(inferred)
+      const skipNote =
+        skipped > 0 ? `Skipped ${skipped} title row${skipped === 1 ? '' : 's'} at the top. ` : ''
+      if (mapped > 0) {
+        setImportMsg(
+          `${skipNote}${
+            warnings.length
+              ? `${warnings[0]} Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'} from your header row.`
+              : `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'} from your header row. Review before preview.`
+          }`
+        )
+      } else if (warnings.length || skipped > 0) {
+        setImportMsg(`${skipNote}${warnings[0] || 'Map columns manually, then preview.'}`)
+      } else {
+        setImportMsg(null)
       }
     } catch (err) {
       setImportErr(err?.message || 'Could not read file')
@@ -730,7 +724,8 @@ export default function Supplies() {
                 className="text-sm w-full"
               />
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-                CSV, TSV, TXT, Excel (.xlsx, .xls), or OpenDocument (.ods)
+                Excel (.xlsx, .xls), CSV, TSV, or ODS — not PDF. From QuickBooks: export the report as
+                spreadsheet, not PDF.
               </p>
               {importFileName && (
                 <p className="text-xs text-gray-500 mt-1">
@@ -741,14 +736,45 @@ export default function Supplies() {
             </div>
             {parsedRows.length > 0 && importStep === 'map' && (
               <div className="space-y-3">
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={hasHeader}
-                    onChange={(e) => setHasHeader(e.target.checked)}
-                  />
-                  First row is header
-                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={hasHeader}
+                      onChange={(e) => {
+                        const nextHasHeader = e.target.checked
+                        setHasHeader(nextHasHeader)
+                        if (parsedRows.length) {
+                          const inferred = inferSupplyColumnMapping(parsedRows, nextHasHeader)
+                          setColumnMapping(inferred)
+                          const mapped = countMappedFields(inferred)
+                          if (mapped > 0) {
+                            setImportMsg(
+                              `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'}${nextHasHeader ? ' from header row' : ' by column position'}.`
+                            )
+                          }
+                        }
+                      }}
+                    />
+                    First row is header
+                  </label>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    onClick={() => {
+                      const inferred = inferSupplyColumnMapping(parsedRows, hasHeader)
+                      setColumnMapping(inferred)
+                      const mapped = countMappedFields(inferred)
+                      setImportMsg(
+                        mapped > 0
+                          ? `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'}. Adjust any dropdown if needed.`
+                          : 'Could not match headers — map columns manually or check “First row is header”.'
+                      )
+                    }}
+                  >
+                    Auto-map columns
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {IMPORT_FIELDS.map((f) => (
                     <div key={f.key}>
@@ -760,19 +786,35 @@ export default function Supplies() {
                         value={columnMapping[f.key] ?? ''}
                         onChange={(e) => {
                           const v = e.target.value
-                          setColumnMapping((m) => ({
-                            ...m,
-                            [f.key]: v === '' ? null : Number(v),
-                          }))
+                          const nextIdx = v === '' ? null : Number(v)
+                          setColumnMapping((m) => {
+                            const next = { ...m, [f.key]: nextIdx }
+                            // Avoid two fields pointing at the same column — clear duplicates.
+                            if (nextIdx != null) {
+                              for (const other of IMPORT_FIELDS) {
+                                if (other.key !== f.key && next[other.key] === nextIdx) {
+                                  next[other.key] = null
+                                }
+                              }
+                            }
+                            return next
+                          })
                         }}
                         className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
                       >
-                        <option value="">—</option>
-                        {Array.from({ length: maxCols }, (_, i) => (
-                          <option key={i} value={i}>
-                            {headerLabels[i] != null ? `${i}: ${headerLabels[i]}` : `Column ${i + 1}`}
-                          </option>
-                        ))}
+                        <option value="">— Skip —</option>
+                        {Array.from({ length: maxCols }, (_, i) => {
+                          const label =
+                            headerLabels[i] != null ? `${i}: ${headerLabels[i]}` : `Column ${i + 1}`
+                          const takenBy = IMPORT_FIELDS.find(
+                            (other) => other.key !== f.key && columnMapping[other.key] === i
+                          )
+                          return (
+                            <option key={i} value={i}>
+                              {takenBy ? `${label} (mapped to ${takenBy.label})` : label}
+                            </option>
+                          )
+                        })}
                       </select>
                     </div>
                   ))}
