@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const prisma = require('../lib/prisma');
 const AppError = require('../utils/AppError');
 const supplyService = require('./supplyService');
+const { analyzeImportDuplicates, applyDuplicatePolicy } = require('../utils/supplyImportDuplicates');
 
 const MAX_IMPORT_ROWS = 5000;
 
@@ -63,20 +64,27 @@ function validateItemsForPreview(items) {
 
 async function previewImport(companyId, items) {
   const { normalized, errors, valid } = validateItemsForPreview(items);
+  const duplicateAnalysis = analyzeImportDuplicates(normalized);
   return {
     valid,
     row_count: items.length,
     valid_row_count: normalized.length,
     errors,
     preview: normalized.slice(0, 25),
+    duplicate_count: duplicateAnalysis.duplicate_count,
+    kept_row_count: duplicateAnalysis.kept_row_count,
+    duplicates: duplicateAnalysis.duplicates.slice(0, 50),
   };
 }
 
-async function commitImport(companyId, userId, items, fileName) {
+async function commitImport(companyId, userId, items, fileName, duplicatePolicy = 'skip') {
   const { normalized, errors, valid } = validateItemsForPreview(items);
   if (!valid) {
     throw new AppError('Fix validation errors before committing', 400);
   }
+
+  const policy = duplicatePolicy === 'add_separate' ? 'add_separate' : 'skip';
+  const { items: importItems, analysis } = applyDuplicatePolicy(normalized, policy);
 
   const jobId = randomUUID();
   await prisma.$transaction(async (tx) => {
@@ -88,10 +96,15 @@ async function commitImport(companyId, userId, items, fileName) {
         type: 'csv_supply',
         status: 'pending',
         fileName: fileName ? String(fileName).slice(0, 255) : null,
+        result: {
+          duplicate_policy: policy,
+          duplicate_count: analysis.duplicate_count,
+          duplicates: analysis.duplicates.slice(0, 50),
+        },
       },
     });
     await tx.supplyImportRow.createMany({
-      data: normalized.map((payload, idx) => ({
+      data: importItems.map((payload, idx) => ({
         id: randomUUID(),
         jobId,
         rowIndex: idx,
@@ -102,7 +115,14 @@ async function commitImport(companyId, userId, items, fileName) {
   });
 
   scheduleSupplyImportJob(jobId);
-  return { job_id: jobId, status: 'pending', rows: normalized.length };
+  return {
+    job_id: jobId,
+    status: 'pending',
+    rows: importItems.length,
+    duplicate_policy: policy,
+    duplicate_count: analysis.duplicate_count,
+    skipped_duplicates: policy === 'skip' ? analysis.duplicate_count : 0,
+  };
 }
 
 function scheduleSupplyImportJob(jobId) {
@@ -134,6 +154,7 @@ async function processSupplyImportJob(jobId) {
   const items = job.rows.map((r) => r.payload);
   try {
     const { created, updated } = await supplyService.bulkCreateSupplies(job.companyId, items);
+    const prior = job.result && typeof job.result === 'object' ? job.result : {};
     await prisma.$transaction([
       prisma.supplyImportRow.updateMany({
         where: { jobId: jid },
@@ -143,7 +164,16 @@ async function processSupplyImportJob(jobId) {
         where: { id: jid },
         data: {
           status: 'completed',
-          result: { created, updated: updated ?? 0 },
+          result: {
+            ...prior,
+            created,
+            updated: updated ?? 0,
+            imported_rows: items.length,
+            skipped_duplicates:
+              prior.duplicate_policy === 'skip' ? prior.duplicate_count ?? 0 : 0,
+            added_separate_duplicates:
+              prior.duplicate_policy === 'add_separate' ? prior.duplicate_count ?? 0 : 0,
+          },
           errorMessage: null,
         },
       }),

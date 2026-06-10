@@ -93,6 +93,7 @@ export default function Supplies() {
   const [columnMapping, setColumnMapping] = useState(defaultSupplyColumnMapping)
   const [importStep, setImportStep] = useState('map')
   const [previewResult, setPreviewResult] = useState(null)
+  const [duplicatePolicy, setDuplicatePolicy] = useState('skip')
   const [importBusy, setImportBusy] = useState(false)
   const [importMsg, setImportMsg] = useState(null)
   const [importErr, setImportErr] = useState(null)
@@ -133,6 +134,7 @@ export default function Supplies() {
     setColumnMapping(defaultSupplyColumnMapping())
     setImportStep('map')
     setPreviewResult(null)
+    setDuplicatePolicy('skip')
     setImportBusy(false)
     setImportMsg(null)
     setImportErr(null)
@@ -198,6 +200,7 @@ export default function Supplies() {
     try {
       const res = await api.post('/supplies/import/preview', { items })
       setPreviewResult(res.data)
+      setDuplicatePolicy('skip')
       setImportStep('preview')
     } catch (err) {
       setImportErr(err?.response?.data?.error || 'Preview failed')
@@ -216,6 +219,7 @@ export default function Supplies() {
       const res = await api.post('/supplies/import/commit', {
         items,
         file_name: importFileName || null,
+        duplicate_policy: duplicatePolicy,
       })
       const jobId = res.data?.job_id
       if (!jobId) {
@@ -233,9 +237,13 @@ export default function Supplies() {
         if (status === 'completed') {
           const created = st.data?.result?.created ?? 0
           const updated = st.data?.result?.updated ?? 0
+          const skippedDupes = st.data?.result?.skipped_duplicates ?? 0
+          const addedDupes = st.data?.result?.added_separate_duplicates ?? 0
           const parts = []
           if (created) parts.push(`${created} added`)
           if (updated) parts.push(`${updated} updated`)
+          if (skippedDupes) parts.push(`${skippedDupes} duplicate${skippedDupes === 1 ? '' : 's'} skipped`)
+          if (addedDupes) parts.push(`${addedDupes} duplicate${addedDupes === 1 ? '' : 's'} added separately`)
           setImportMsg(
             parts.length ? `Import complete: ${parts.join(', ')}.` : 'Import complete (no changes).'
           )
@@ -726,6 +734,66 @@ export default function Supplies() {
                     {previewResult.errors.length > 40 && <li>…</li>}
                   </ul>
                 )}
+                {previewResult.duplicate_count > 0 && (
+                  <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-3 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-950 dark:text-amber-100">
+                        Duplicate items in your file
+                      </h3>
+                      <p className="text-xs text-amber-900/90 dark:text-amber-200/90 mt-1">
+                        We found {previewResult.duplicate_count} row
+                        {previewResult.duplicate_count === 1 ? '' : 's'} with the same item # or name as an earlier
+                        row. Non-duplicate rows will still import normally.
+                      </p>
+                    </div>
+                    <ul className="text-xs text-amber-950 dark:text-amber-100 max-h-24 overflow-y-auto list-disc pl-4 space-y-0.5">
+                      {(previewResult.duplicates || []).slice(0, 12).map((dup, i) => (
+                        <li key={i}>
+                          Row {dup.row}: {dup.name}
+                          {dup.sku ? ` (SKU ${dup.sku})` : ''} — matches row {dup.kept_row}
+                        </li>
+                      ))}
+                      {previewResult.duplicate_count > 12 && <li>…and {previewResult.duplicate_count - 12} more</li>}
+                    </ul>
+                    <div>
+                      <p className="text-xs font-medium text-amber-950 dark:text-amber-100 mb-2">
+                        How should we handle duplicates?
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDuplicatePolicy('skip')}
+                          className={`text-left rounded-md border px-3 py-2 transition-colors ${
+                            duplicatePolicy === 'skip'
+                              ? 'border-teal-500 bg-white dark:bg-slate-900 ring-2 ring-teal-500/40'
+                              : 'border-amber-200 dark:border-amber-800 bg-white/70 dark:bg-slate-900/50 hover:border-teal-400'
+                          }`}
+                        >
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">Skip duplicates</span>
+                          <span className="block text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">
+                            Recommended — import {previewResult.kept_row_count} unique items (first row wins)
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDuplicatePolicy('add_separate')}
+                          className={`text-left rounded-md border px-3 py-2 transition-colors ${
+                            duplicatePolicy === 'add_separate'
+                              ? 'border-teal-500 bg-white dark:bg-slate-900 ring-2 ring-teal-500/40'
+                              : 'border-amber-200 dark:border-amber-800 bg-white/70 dark:bg-slate-900/50 hover:border-teal-400'
+                          }`}
+                        >
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            Add as separate items
+                          </span>
+                          <span className="block text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">
+                            Import all {previewResult.valid_row_count} rows with renamed duplicates
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {previewResult.preview?.length > 0 && (
                   <div className="border border-gray-200 dark:border-slate-700 rounded-md overflow-x-auto text-xs">
                     <table className="min-w-full">
@@ -773,7 +841,13 @@ export default function Supplies() {
                     onClick={runCommit}
                     className="text-sm bg-teal-600 text-white px-4 py-2 rounded-md font-medium hover:bg-teal-500 disabled:opacity-50"
                   >
-                    {importBusy ? 'Importing…' : 'Import'}
+                    {importBusy
+                      ? 'Importing…'
+                      : previewResult.duplicate_count > 0 && duplicatePolicy === 'skip'
+                        ? `Import ${previewResult.kept_row_count} items (skip ${previewResult.duplicate_count} duplicates)`
+                        : previewResult.duplicate_count > 0 && duplicatePolicy === 'add_separate'
+                          ? `Import all ${previewResult.valid_row_count} items`
+                          : 'Import'}
                   </button>
                 </div>
               </div>

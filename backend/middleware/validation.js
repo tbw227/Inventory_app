@@ -254,6 +254,7 @@ const schemas = {
   supplyImportCommit: Joi.object({
     items: Joi.array().items(supplyImportItem).min(1).max(5000).required(),
     file_name: Joi.string().allow('', null).max(255).optional(),
+    duplicate_policy: Joi.string().valid('skip', 'add_separate').default('skip'),
   }),
 
   supplyExportEmail: Joi.object({

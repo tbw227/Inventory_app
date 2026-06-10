@@ -68,7 +68,8 @@ exports.importCommit = async (req, res, next) => {
       req.user.company_id,
       req.user._id,
       req.validatedData.items,
-      req.validatedData.file_name
+      req.validatedData.file_name,
+      req.validatedData.duplicate_policy
     );
     res.status(202).json(out);
   } catch (err) {
