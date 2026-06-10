@@ -1,4 +1,5 @@
-import React, { Suspense, lazy } from 'react'
+import React, { Suspense, lazy, useEffect } from 'react'
+import { clearStaleAppRecoveryState } from './utils/recoverStaleApp'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/shared/ProtectedRoute'
@@ -50,6 +51,10 @@ function ProtectedLayout({ children, requiredRole }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    clearStaleAppRecoveryState()
+  }, [])
+
   return (
     <AuthProvider>
       <Suspense fallback={<RouteFallback />}>

@@ -96,7 +96,8 @@ export default defineConfig(({ mode }) => {
         workbox: {
           clientsClaim: true,
           skipWaiting: true,
-          navigateFallbackDenylist: [/^\/api\//],
+          cleanupOutdatedCaches: true,
+          navigateFallbackDenylist: [/^\/api\//, /^\/assets\//],
         },
       }),
     ],

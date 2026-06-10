@@ -1,13 +1,5 @@
 import React from 'react'
-
-function isStaleChunkError(error) {
-  const msg = String(error?.message || error || '')
-  return (
-    msg.includes('Failed to fetch dynamically imported module') ||
-    msg.includes('Loading chunk') ||
-    msg.includes('MIME type')
-  )
-}
+import { clearStaleAppRecoveryState, isStaleChunkError, recoverFromStaleDeploy } from '../../utils/recoverStaleApp'
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -40,8 +32,8 @@ export default class ErrorBoundary extends React.Component {
             <button
               onClick={() => {
                 if (staleDeploy) {
-                  sessionStorage.removeItem('fieldops:chunk-reload')
-                  window.location.reload()
+                  clearStaleAppRecoveryState()
+                  recoverFromStaleDeploy({ force: true })
                   return
                 }
                 this.setState({ hasError: false, error: null })
