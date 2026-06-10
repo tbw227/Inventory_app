@@ -11,6 +11,8 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { formatDate, formatDateTime } from '../utils/formatDate'
 import InventoryOverviewCharts from '../components/inventory/InventoryOverviewCharts'
+import SupplyImportColumnMapper from '../components/inventory/SupplyImportColumnMapper'
+import { buildImportItems } from '../utils/supplyImportMapping'
 import { formatSupplyCatalogLines, parseSupplyDisplayName } from '../utils/supplyDisplay'
 import { computeShopHealthCounts } from '../utils/inventoryStats'
 
@@ -58,58 +60,6 @@ function ShopTableHeaderCell({ children, align = 'left', className = '', rowSpan
 function fmtMoneyCell(n) {
   if (n == null || n === '' || Number.isNaN(Number(n))) return '—'
   return `$${Number(n).toFixed(2)}`
-}
-
-function composeImportName(name, itemNo) {
-  const n = String(name || '').trim()
-  const sku = String(itemNo || '').trim()
-  if (!n) return ''
-  if (!sku || /^\[/.test(n)) return n
-  return `[${sku}] ${n}`
-}
-
-const IMPORT_FIELDS = [
-  { key: 'item_no', label: 'Item # / SKU' },
-  { key: 'name', label: 'Name / description', required: true },
-  { key: 'category', label: 'Category' },
-  { key: 'quantity_on_hand', label: 'Shop on hand (QOH)' },
-  { key: 'case_qty', label: 'Case qty' },
-  { key: 'reorder_threshold', label: 'Reorder at' },
-  { key: 'unit_price', label: 'Unit price' },
-]
-
-function cellAt(row, idx) {
-  if (idx == null || idx < 0) return ''
-  const v = row[idx]
-  return v == null ? '' : String(v).trim()
-}
-
-function buildImportItems(rows, hasHeader, mapping) {
-  const dataRows = hasHeader ? rows.slice(1) : rows
-  const items = []
-  for (const row of dataRows) {
-    if (!row || !row.length) continue
-    const rawName = cellAt(row, mapping.name)
-    const itemNo = cellAt(row, mapping.item_no)
-    const name = composeImportName(rawName, itemNo)
-    if (!name) continue
-    const item = { name }
-    const cat = cellAt(row, mapping.category)
-    if (cat) item.category = cat
-    const q = cellAt(row, mapping.quantity_on_hand)
-    if (q !== '') item.quantity_on_hand = Math.max(0, Math.floor(Number(q) || 0))
-    const cq = cellAt(row, mapping.case_qty)
-    if (cq !== '') item.case_qty = Math.max(0, Math.floor(Number(cq) || 0))
-    const r = cellAt(row, mapping.reorder_threshold)
-    if (r !== '') item.reorder_threshold = Math.max(0, Math.floor(Number(r) || 0))
-    const p = cellAt(row, mapping.unit_price)
-    if (p !== '') {
-      const n = Number(p.replace(/[$,]/g, ''))
-      if (Number.isFinite(n) && n >= 0) item.unit_price = n
-    }
-    items.push(item)
-  }
-  return items
 }
 
 export default function Supplies() {
@@ -175,17 +125,6 @@ export default function Supplies() {
   useEffect(() => {
     setSelectedIds((prev) => prev.filter((id) => shop.some((s) => s._id === id)))
   }, [shop])
-
-  const headerLabels = useMemo(() => {
-    if (!parsedRows.length) return []
-    const first = parsedRows[0] || []
-    return first.map((c, i) => (hasHeader ? String(c ?? '').trim() || `Column ${i + 1}` : `Column ${i + 1}`))
-  }, [parsedRows, hasHeader])
-
-  const maxCols = useMemo(() => {
-    if (!parsedRows.length) return 0
-    return Math.max(...parsedRows.map((r) => (r ? r.length : 0)), 0)
-  }, [parsedRows])
 
   function resetImportWizard() {
     setImportFileName('')
@@ -696,7 +635,7 @@ export default function Supplies() {
           aria-modal="true"
           aria-labelledby="import-dialog-title"
         >
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-5 space-y-4">
             <div className="flex justify-between items-start gap-2">
               <h2 id="import-dialog-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                 Import shop supplies
@@ -735,99 +674,37 @@ export default function Supplies() {
               )}
             </div>
             {parsedRows.length > 0 && importStep === 'map' && (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={hasHeader}
-                      onChange={(e) => {
-                        const nextHasHeader = e.target.checked
-                        setHasHeader(nextHasHeader)
-                        if (parsedRows.length) {
-                          const inferred = inferSupplyColumnMapping(parsedRows, nextHasHeader)
-                          setColumnMapping(inferred)
-                          const mapped = countMappedFields(inferred)
-                          if (mapped > 0) {
-                            setImportMsg(
-                              `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'}${nextHasHeader ? ' from header row' : ' by column position'}.`
-                            )
-                          }
-                        }
-                      }}
-                    />
-                    First row is header
-                  </label>
-                  <button
-                    type="button"
-                    className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                    onClick={() => {
-                      const inferred = inferSupplyColumnMapping(parsedRows, hasHeader)
-                      setColumnMapping(inferred)
-                      const mapped = countMappedFields(inferred)
+              <SupplyImportColumnMapper
+                parsedRows={parsedRows}
+                hasHeader={hasHeader}
+                columnMapping={columnMapping}
+                onMappingChange={setColumnMapping}
+                onHasHeaderChange={(nextHasHeader) => {
+                  setHasHeader(nextHasHeader)
+                  if (parsedRows.length) {
+                    const inferred = inferSupplyColumnMapping(parsedRows, nextHasHeader)
+                    setColumnMapping(inferred)
+                    const mapped = countMappedFields(inferred)
+                    if (mapped > 0) {
                       setImportMsg(
-                        mapped > 0
-                          ? `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'}. Adjust any dropdown if needed.`
-                          : 'Could not match headers — map columns manually or check “First row is header”.'
+                        `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'}${nextHasHeader ? ' from header row' : ' by column position'}. Click headers to adjust.`
                       )
-                    }}
-                  >
-                    Auto-map columns
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {IMPORT_FIELDS.map((f) => (
-                    <div key={f.key}>
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
-                        {f.label}
-                        {f.required && <span className="text-red-500"> *</span>}
-                      </label>
-                      <select
-                        value={columnMapping[f.key] ?? ''}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          const nextIdx = v === '' ? null : Number(v)
-                          setColumnMapping((m) => {
-                            const next = { ...m, [f.key]: nextIdx }
-                            // Avoid two fields pointing at the same column — clear duplicates.
-                            if (nextIdx != null) {
-                              for (const other of IMPORT_FIELDS) {
-                                if (other.key !== f.key && next[other.key] === nextIdx) {
-                                  next[other.key] = null
-                                }
-                              }
-                            }
-                            return next
-                          })
-                        }}
-                        className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-slate-950 text-gray-900 dark:text-white"
-                      >
-                        <option value="">— Skip —</option>
-                        {Array.from({ length: maxCols }, (_, i) => {
-                          const label =
-                            headerLabels[i] != null ? `${i}: ${headerLabels[i]}` : `Column ${i + 1}`
-                          const takenBy = IMPORT_FIELDS.find(
-                            (other) => other.key !== f.key && columnMapping[other.key] === i
-                          )
-                          return (
-                            <option key={i} value={i}>
-                              {takenBy ? `${label} (mapped to ${takenBy.label})` : label}
-                            </option>
-                          )
-                        })}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  disabled={importBusy}
-                  onClick={runPreview}
-                  className="text-sm bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {importBusy ? 'Working…' : 'Preview'}
-                </button>
-              </div>
+                    }
+                  }
+                }}
+                onAutoMap={() => {
+                  const inferred = inferSupplyColumnMapping(parsedRows, hasHeader)
+                  setColumnMapping(inferred)
+                  const mapped = countMappedFields(inferred)
+                  setImportMsg(
+                    mapped > 0
+                      ? `Auto-mapped ${mapped} column${mapped === 1 ? '' : 's'}. Click any header to change.`
+                      : 'Could not match headers — click column headers to map manually.'
+                  )
+                }}
+                onPreview={runPreview}
+                importBusy={importBusy}
+              />
             )}
             {importStep === 'preview' && previewResult && (
               <div className="space-y-3">
