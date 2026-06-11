@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import api from '../services/api'
 import { ROUTES } from '../config/routes'
 import { isClerkEnabled } from '../config/clerk'
+import { getSignInPath } from '../config/authPortal'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -37,7 +38,7 @@ export default function ForgotPassword() {
   }
 
   if (isClerkEnabled()) {
-    return <Navigate to={ROUTES.LOGIN} replace />
+    return <Navigate to={getSignInPath()} replace />
   }
 
   return (

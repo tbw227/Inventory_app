@@ -2,6 +2,7 @@ import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { ROUTES } from '../../config/routes'
+import { getSignInPath } from '../../config/authPortal'
 
 export default function ProtectedRoute({ children, requiredRole }) {
   const { user, loading } = useAuth()
@@ -16,7 +17,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
   }
 
   if (!user) {
-    return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />
+    return <Navigate to={getSignInPath()} state={{ from: location }} replace />
   }
 
   if (requiredRole && user.role !== requiredRole) {

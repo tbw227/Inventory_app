@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { MARKETING_SIGNUP_URL } from '../../config/marketing'
+import { getSignUpPath, isPortalAuthEnabled } from '../../config/authPortal'
 
-/** Signup lives on the marketing site — /register in the app forwards there. */
-export default function RedirectToMarketingSignup() {
+function MarketingExternalSignupRedirect() {
   useEffect(() => {
     window.location.replace(MARKETING_SIGNUP_URL)
   }, [])
@@ -12,4 +13,17 @@ export default function RedirectToMarketingSignup() {
       <p className="text-sm text-gray-600">Redirecting to sign up…</p>
     </div>
   )
+}
+
+/**
+ * Signup fallback when in-app portal signup is off — forwards to marketing.
+ * When Clerk or VITE_ALLOW_PUBLIC_REGISTRATION is on, use the app portal instead.
+ */
+export default function RedirectToMarketingSignup() {
+  if (isPortalAuthEnabled()) {
+    const path = getSignUpPath()
+    if (path) return <Navigate to={path} replace />
+  }
+
+  return <MarketingExternalSignupRedirect />
 }

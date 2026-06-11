@@ -3,11 +3,14 @@ import { clearStaleAppRecoveryState } from './utils/recoverStaleApp'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/shared/ProtectedRoute'
 import { ROUTES } from './config/routes'
-import { PUBLIC_REGISTRATION_ENABLED } from './config/security'
+import { isClerkEnabled } from './config/clerk'
+import { isPortalAuthEnabled } from './config/authPortal'
 import { Toaster } from 'react-hot-toast'
 
 const Layout = lazy(() => import('./components/layout/Layout'))
 const Login = lazy(() => import('./pages/Login'))
+const ClerkSignInPage = lazy(() => import('./pages/ClerkSignInPage'))
+const ClerkSignUpPage = lazy(() => import('./pages/ClerkSignUpPage'))
 const RedirectToMarketingSignup = lazy(() => import('./components/auth/RedirectToMarketingSignup'))
 const Register = lazy(() => import('./pages/Register'))
 const AuthHandoff = lazy(() => import('./pages/AuthHandoff'))
@@ -60,9 +63,15 @@ export default function App() {
       <Routes>
           <Route
             path={ROUTES.REGISTER}
-            element={PUBLIC_REGISTRATION_ENABLED ? <Register /> : <RedirectToMarketingSignup />}
+            element={isPortalAuthEnabled() ? <Register /> : <RedirectToMarketingSignup />}
           />
           <Route path={ROUTES.LOGIN} element={<Login />} />
+          {isClerkEnabled() && (
+            <>
+              <Route path={`${ROUTES.SIGN_IN}/*`} element={<ClerkSignInPage />} />
+              <Route path={`${ROUTES.SIGN_UP}/*`} element={<ClerkSignUpPage />} />
+            </>
+          )}
           <Route path={ROUTES.AUTH_HANDOFF} element={<AuthHandoff />} />
           <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
           <Route path={ROUTES.RESET_PASSWORD} element={<ResetPassword />} />

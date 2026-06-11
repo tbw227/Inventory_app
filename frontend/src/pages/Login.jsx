@@ -12,7 +12,6 @@ import { getSignupHref, isMarketingSiteConfigured, useInAppSignupLink } from '..
 import BrandLogo from '../components/ui/BrandLogo'
 import { PRODUCT_NAME } from '../config/brand'
 import { isClerkEnabled } from '../config/clerk'
-import ClerkSignInPanel from '../components/auth/ClerkSignInPanel'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -46,38 +45,7 @@ export default function Login() {
   }
 
   if (clerkAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8 flex flex-col items-center">
-            <BrandLogo size="lg" showName nameClassName="text-blue-600" />
-            <p className="mt-3 text-sm text-gray-500">Sign in to {PRODUCT_NAME}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <ClerkSignInPanel />
-          </div>
-          <p className="mt-4 text-center text-sm text-gray-500">
-            New company?{' '}
-            {inAppSignup ? (
-              <Link to={signupHref} className="text-blue-600 hover:text-blue-800 font-medium">
-                Create your company
-              </Link>
-            ) : (
-              <a href={signupHref} className="text-blue-600 hover:text-blue-800 font-medium">
-                Create your company
-              </a>
-            )}
-          </p>
-          {isMarketingSiteConfigured() && MARKETING_SITE_URL && (
-            <p className="text-center text-xs text-gray-500 pt-3">
-              <a href={MARKETING_SITE_URL} className="text-blue-600 hover:underline font-medium">
-                ← Back to website
-              </a>
-            </p>
-          )}
-        </div>
-      </div>
-    )
+    return <Navigate to={ROUTES.SIGN_IN} replace />
   }
 
   return (

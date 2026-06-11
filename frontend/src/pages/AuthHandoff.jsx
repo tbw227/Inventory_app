@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../config/routes'
+import { getPortalSignInUrl } from '../config/authPortal'
 import api from '../services/api'
 
 /**
@@ -16,7 +17,7 @@ export default function AuthHandoff() {
     const token = params.get('token')
 
     if (!token) {
-      setError('Missing sign-in token. Use the marketing site or app login.')
+      setError(`Missing sign-in token. Sign in at ${getPortalSignInUrl()}.`)
       setStatus('error')
       return
     }

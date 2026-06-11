@@ -5,6 +5,9 @@
 export const ROUTES = {
   REGISTER: '/register',
   LOGIN: '/login',
+  /** Clerk-hosted sign-in (path routing) — used when VITE_CLERK_PUBLISHABLE_KEY is set */
+  SIGN_IN: '/sign-in',
+  SIGN_UP: '/sign-up',
   AUTH_HANDOFF: '/auth/handoff',
   FORGOT_PASSWORD: '/forgot-password',
   RESET_PASSWORD: '/reset-password',

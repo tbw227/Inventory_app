@@ -10,6 +10,8 @@ import App from './App'
 import './styles/index.css'
 import { installStaleDeployRecovery } from './utils/recoverStaleApp'
 import { isClerkEnabled, getClerkPublishableKey } from './config/clerk'
+import { getSignInPath, getSignUpPath } from './config/authPortal'
+import { ROUTES } from './config/routes'
 
 installStaleDeployRecovery()
 
@@ -17,7 +19,14 @@ function AppTree() {
   const app = <App />
   if (!isClerkEnabled()) return app
   return (
-    <ClerkProvider publishableKey={getClerkPublishableKey()}>
+    <ClerkProvider
+      publishableKey={getClerkPublishableKey()}
+      signInUrl={getSignInPath()}
+      signUpUrl={getSignUpPath()}
+      afterSignOutUrl={getSignInPath()}
+      afterSignInUrl={ROUTES.DASHBOARD}
+      afterSignUpUrl={ROUTES.DASHBOARD}
+    >
       <ClerkAuthBridge>{app}</ClerkAuthBridge>
     </ClerkProvider>
   )

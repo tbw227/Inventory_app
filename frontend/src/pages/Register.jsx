@@ -6,7 +6,6 @@ import api, { getApiErrorMessage } from '../services/api'
 import BrandLogo from '../components/ui/BrandLogo'
 import { PRODUCT_NAME } from '../config/brand'
 import { isClerkEnabled } from '../config/clerk'
-import ClerkSignUpPanel from '../components/auth/ClerkSignUpPanel'
 
 export default function Register() {
   const [companyName, setCompanyName] = useState('')
@@ -72,28 +71,7 @@ export default function Register() {
   }
 
   if (isClerkEnabled() && !clerkProvision) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-8 flex flex-col items-center">
-            <BrandLogo size="lg" showName nameClassName="text-blue-600" />
-            <h1 className="mt-4 text-xl font-semibold text-gray-900">Create your company</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Sign up with Clerk, then we&apos;ll ask for your company name
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <ClerkSignUpPanel />
-          </div>
-          <p className="mt-4 text-center text-sm text-gray-500">
-            Already have an account?{' '}
-            <Link to={ROUTES.LOGIN} className="text-blue-600 hover:text-blue-800 font-medium">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </div>
-    )
+    return <Navigate to={ROUTES.SIGN_UP} replace />
   }
 
   return (
